@@ -276,9 +276,14 @@ def read_nifti_from_bytes(data_bytes):
     
     data = np.transpose(data, (2, 1, 0))
     
+    # Apply LPS reorientation based on sform matrix (matches nifti.js)
+    if sform[0] < 0: data = data[:, :, ::-1]
+    if sform[5] < 0: data = data[:, ::-1, :]
+    if sform[10] < 0: data = data[::-1, :, :]
+    
     return data, (nz, ny, nx), (sz, sy, sx)
 
-def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbox=None):
+def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbox=None, target_shape=None):
     data, shape, spacing = read_nifti_from_bytes(nii_bytes)
     
     if ref_bbox is None:
@@ -299,7 +304,12 @@ def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbo
     
     data_crop = data[z0:z1, y0:y1, x0:x1]
     
-    zoom_factors = (spacing[0] / target_spacing[0], spacing[1] / target_spacing[1], spacing[2] / target_spacing[2])
+    if target_shape is not None:
+        # Force exact shape match to the Image to prevent JS tiling
+        zoom_factors = (target_shape[0] / data_crop.shape[0], target_shape[1] / data_crop.shape[1], target_shape[2] / data_crop.shape[2])
+    else:
+        zoom_factors = (spacing[0] / target_spacing[0], spacing[1] / target_spacing[1], spacing[2] / target_spacing[2])
+        
     order = 0 if is_label else 1
     resampled = zoom(data_crop, zoom_factors, order=order)
     
@@ -309,7 +319,7 @@ def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbo
         resampled = resampled.astype(np.float32)
     
     return resampled.tobytes(), list(resampled.shape), [z0, z1, y0, y1, x0, x1], resampled.dtype.name
-  </script>
+</script>
 
   <script>
     const DEV_MODE = new URLSearchParams(location.search).has('dev');
@@ -656,12 +666,13 @@ json.dumps({"shape": shape, "bbox": bbox, "dtype": dtype, "length": len(img_out)
           py.globals.set("gt_bytes", new Uint8Array(arrayBuffer));
           py.globals.set("modality", lastModality);
           py.globals.set("ref_bbox", py.toPy(window.lastImageBbox));
+          py.globals.set("target_shape", py.toPy(lastProcessedImg.shape));
           
           const resultJson = py.runPython(`
 import py_preprocess
 import json
 gt_out, shape, _, dtype = py_preprocess.preprocess_from_bytes(
-    bytes(gt_bytes), True, modality, [0.9, 0.9, 0.9], list(ref_bbox)
+    bytes(gt_bytes), True, modality, [0.9, 0.9, 0.9], list(ref_bbox), list(target_shape)
 )
 json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
           `);
@@ -737,7 +748,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v15');
+      const cache = await caches.open('topbrain-v16');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
