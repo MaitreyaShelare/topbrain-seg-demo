@@ -342,7 +342,16 @@ def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbo
       await py.loadPackage(["numpy", "scipy"]);
       const pyPreEl = document.getElementById("py-preprocess-source");
       if (!pyPreEl || !pyPreEl.textContent) throw new Error("Inline Python source not found");
-      py.runPython(pyPreEl.textContent);
+      
+      // Register the inline code as a module so `import py_preprocess` works
+      py.globals.set("py_pre_text", pyPreEl.textContent);
+      py.runPython(`
+import sys, types
+mod = types.ModuleType('py_preprocess')
+exec(py_pre_text, mod.__dict__)
+sys.modules['py_preprocess'] = mod
+      `);
+      
       pyodideInstance = py;
       return py;
     }
@@ -728,7 +737,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v14');
+      const cache = await caches.open('topbrain-v15');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
