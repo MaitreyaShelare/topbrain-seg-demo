@@ -2,7 +2,7 @@
 // Strategy: precache all static assets on install, serve from cache on fetch,
 // fall back to network for anything uncached.
 
-const CACHE_NAME = 'topbrain-v22';
+const CACHE_NAME = 'topbrain-v23';
 
 // Assets to precache on install. All file paths relative to /
 const PRECACHE = [

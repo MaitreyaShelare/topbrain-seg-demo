@@ -304,13 +304,13 @@ def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbo
     
     data_crop = data[z0:z1, y0:y1, x0:x1]
     
-    # ALWAYS use physical spacing to resample (exactly like SimpleITK)
+    # ALWAYS use physical spacing to match SimpleITK
     zoom_factors = (spacing[0] / target_spacing[0], spacing[1] / target_spacing[1], spacing[2] / target_spacing[2])
-        
+    
     order = 0 if is_label else 1
     resampled = zoom(data_crop, zoom_factors, order=order)
     
-    # Force exact shape to prevent JS fallback tiling
+    # Pad or crop to exact target_shape if there is a 1-voxel mismatch
     if target_shape is not None:
         target_shape = tuple(target_shape)
         if resampled.shape != target_shape:
@@ -741,7 +741,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v22');
+      const cache = await caches.open('topbrain-v23');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
