@@ -1,4 +1,4 @@
-<!-- build trigger 1 -->
+<!-- build trigger -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,8 +7,9 @@
   <title>Team Astra - IE 643 Course Project - Lightweight Brain Vessel Segmentation</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#4a90e2">
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
   <script src="ort_runtime/ort.min.js"></script>
-<script>if (typeof ort !== "undefined" && ort.env && ort.env.wasm) { ort.env.wasm.wasmPaths = location.origin + "/ort_runtime/"; ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4; ort.env.wasm.simd = true; }</script>
+  <script>if (typeof ort !== "undefined" && ort.env && ort.env.wasm) { ort.env.wasm.wasmPaths = location.origin + "/ort_runtime/"; ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4; ort.env.wasm.simd = true; }</script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 12px; background: #f7f8fa; color: #222; line-height: 1.5; }
@@ -20,112 +21,39 @@
     .hero p { margin: 6px 0 0; font-size: 13px; opacity: 0.95; }
     .section { background: white; border-radius: 8px; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
     .section-title { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
-
     .defs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; }
     @media (max-width: 400px) { .defs { grid-template-columns: 1fr; } }
     .def { padding: 8px 10px; background: #f0f6ff; border-radius: 6px; border-left: 3px solid #4a90e2; }
     .def .term { font-weight: 700; font-size: 12px; color: #2563a3; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 2px; }
     .def .text { color: #333; font-size: 12px; }
-
     .model-info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-bottom: 8px; }
     .model-info .item { padding: 10px 12px; background: #f7f8fa; border-radius: 6px; border-left: 3px solid #999; }
     .model-info .item.teacher { border-left-color: #4a90e2; background: #eff6ff; }
     .model-info .item.student { border-left-color: #0a7d2c; background: #f0f9f0; }
     .model-info .item .k { color: #555; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
     .model-info .item .v { font-weight: 700; font-size: 13px; margin-top: 2px; }
-
-    .comparison-card {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-      padding: 12px; background: #1e293b; color: white; border-radius: 8px;
-    }
+    .comparison-card { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px; background: #1e293b; color: white; border-radius: 8px; }
     .comparison-card .metric { text-align: center; }
     .comparison-card .metric .num { font-size: 22px; font-weight: 800; color: #7dd3fc; line-height: 1.1; }
     .comparison-card .metric .desc { font-size: 11px; margin-top: 4px; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.4px; }
-
-    /* Case grid: 3 columns (patient | CTA | MRA) with a header row */
-    .case-grid-header {
-      display: grid;
-      grid-template-columns: 70px 1fr 1fr;
-      gap: 8px;
-      padding: 0 0 8px 0;
-      margin-bottom: 8px;
-      border-bottom: 1px solid #eaeef2;
-    }
-    .case-grid-header .col {
-      text-align: center;
-      font-size: 12px;
-      font-weight: 700;
-      color: #2563a3;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
-    .case-grid-header .col .full {
-      display: block;
-      font-size: 10px;
-      font-weight: 400;
-      color: #888;
-      text-transform: none;
-      letter-spacing: 0;
-      margin-top: 2px;
-    }
-    .patient-row {
-      display: grid;
-      grid-template-columns: 70px 1fr 1fr;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .patient-row .label {
-      font-size: 12px;
-      color: #555;
-      text-align: left;
-      line-height: 1.2;
-    }
-    .patient-row .label strong {
-      color: #222;
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .case-tile {
-      padding: 14px 8px; border: 1px solid #d0d7de; border-radius: 8px;
-      cursor: pointer; text-align: center; transition: all 0.15s;
-      position: relative; background: white;
-      display: flex; align-items: center; justify-content: center;
-    }
+    .case-grid-header { display: grid; grid-template-columns: 70px 1fr 1fr; gap: 8px; padding: 0 0 8px 0; margin-bottom: 8px; border-bottom: 1px solid #eaeef2; }
+    .case-grid-header .col { text-align: center; font-size: 12px; font-weight: 700; color: #2563a3; text-transform: uppercase; letter-spacing: 0.3px; }
+    .case-grid-header .col .full { display: block; font-size: 10px; font-weight: 400; color: #888; text-transform: none; letter-spacing: 0; margin-top: 2px; }
+    .patient-row { display: grid; grid-template-columns: 70px 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .patient-row .label { font-size: 12px; color: #555; text-align: left; line-height: 1.2; }
+    .patient-row .label strong { color: #222; font-size: 12px; font-weight: 700; }
+    .case-tile { padding: 14px 8px; border: 1px solid #d0d7de; border-radius: 8px; cursor: pointer; text-align: center; transition: all 0.15s; position: relative; background: white; display: flex; align-items: center; justify-content: center; }
     .case-tile:hover, .case-tile:active { border-color: #4a90e2; background: #f5f9ff; }
     .case-tile.loading { pointer-events: none; opacity: 0.6; }
-    .case-tile.loading::after {
-      content: ''; position: absolute; top: 8px; right: 8px;
-      width: 16px; height: 16px; border-radius: 50%;
-      border: 2px solid #4a90e2; border-top-color: transparent;
-      animation: spin 0.8s linear infinite;
-    }
+    .case-tile.loading::after { content: ''; position: absolute; top: 8px; right: 8px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #4a90e2; border-top-color: transparent; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .case-tile .dice {
-      font-size: 14px;
-      color: #333;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-      text-align: center;
-    }
-    .case-tile .dice .small {
-      display: block;
-      font-size: 10px;
-      color: #999;
-      font-weight: 400;
-      margin-top: 2px;
-    }
-
+    .case-tile .dice { font-size: 14px; color: #333; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
+    .case-tile .dice .small { display: block; font-size: 10px; color: #999; font-weight: 400; margin-top: 2px; }
     #status { font-size: 13px; padding: 8px 10px; background: #f0f0f0; border-radius: 4px; margin-bottom: 8px; min-height: 20px; display: flex; align-items: center; gap: 8px; }
-    #status .spinner {
-      width: 14px; height: 14px; border-radius: 50%;
-      border: 2px solid #4a90e2; border-top-color: transparent;
-      animation: spin 0.8s linear infinite; display: none;
-    }
+    #status .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #4a90e2; border-top-color: transparent; animation: spin 0.8s linear infinite; display: none; }
     #status.loading .spinner { display: inline-block; }
     #progress { margin-top: 4px; height: 6px; }
     #progress progress { width: 100%; height: 6px; }
-
     #metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; }
     #metrics .cell { padding: 10px; background: #f7f8fa; border-radius: 6px; border-left: 3px solid #4a90e2; }
     #metrics .cell.tea { border-left-color: #4a90e2; background: #eff6ff; }
@@ -133,27 +61,13 @@
     #metrics .cell.delta { border-left-color: #999; background: #fafafa; }
     #metrics .cell .label { color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
     #metrics .cell .value { font-weight: 700; font-size: 22px; margin-top: 2px; }
-
-    /* Class breakdown: summary strip + grouped bands */
     #class-table-container { display: none; margin-top: 12px; }
     #class-table-container.open { display: block; }
-    #class-table-toggle {
-      display: flex; align-items: center; justify-content: space-between;
-      width: 100%; padding: 10px 14px; margin-top: 12px;
-      background: #f5f9ff; border: 1px solid #b8d4f0; border-radius: 8px;
-      color: #2563a3; font-size: 13px; font-weight: 600;
-      cursor: pointer; transition: all 0.15s; font-family: inherit;
-    }
-    #class-table-toggle:hover, #class-table-toggle:focus {
-      background: #eaf3ff; border-color: #4a90e2; outline: none;
-    }
-    #class-table-toggle .toggle-icon {
-      font-size: 14px; transition: transform 0.2s;
-      display: inline-block; margin-left: 8px;
-    }
+    #class-table-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 14px; margin-top: 12px; background: #f5f9ff; border: 1px solid #b8d4f0; border-radius: 8px; color: #2563a3; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+    #class-table-toggle:hover, #class-table-toggle:focus { background: #eaf3ff; border-color: #4a90e2; outline: none; }
+    #class-table-toggle .toggle-icon { font-size: 14px; transition: transform 0.2s; display: inline-block; margin-left: 8px; }
     #class-table-toggle.open .toggle-icon { transform: rotate(180deg); }
     #class-table-toggle.open { background: #eaf3ff; border-color: #4a90e2; }
-
     .class-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
     .class-summary .band { padding: 8px 10px; border-radius: 6px; text-align: center; }
     .class-summary .band .num { font-size: 20px; font-weight: 700; line-height: 1.1; }
@@ -161,20 +75,12 @@
     .class-summary .band.high { background: #e7f6ec; color: #0a7d2c; }
     .class-summary .band.mid { background: #f0f0f0; color: #555; }
     .class-summary .band.low { background: #fdecec; color: #c04040; }
-
     .class-group { margin-bottom: 16px; }
-    .class-group-header {
-      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-      padding: 6px 0 4px; border-bottom: 1px solid #eee; margin-bottom: 6px;
-    }
+    .class-group-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 0 4px; border-bottom: 1px solid #eee; margin-bottom: 6px; }
     .class-group-header.high { color: #0a7d2c; }
     .class-group-header.mid { color: #555; }
     .class-group-header.low { color: #c04040; }
-
-    .class-row {
-      display: grid; grid-template-columns: 1fr 80px 40px;
-      align-items: center; padding: 5px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px;
-    }
+    .class-row { display: grid; grid-template-columns: 1fr 80px 40px; align-items: center; padding: 5px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
     .class-row:last-child { border-bottom: none; }
     .class-row .name { font-weight: 600; color: #222; }
     .class-row .name .id { font-weight: 400; color: #999; font-size: 10px; margin-left: 4px; }
@@ -188,22 +94,15 @@
     .class-row.high .dice-val { color: #0a7d2c; }
     .class-row.mid .dice-val { color: #555; }
     .class-row.low .dice-val { color: #c04040; }
-
     #pwa-status { font-size: 12px; padding: 6px 8px; border-radius: 4px; margin-bottom: 12px; background: #eef6ff; color: #2563a3; }
     #pwa-status.ready { background: #eaf8ee; color: #0a7d2c; }
     #pwa-status.dev { background: #fff3cd; color: #856404; }
-
-    .dropzone {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 20px 16px; border: 2px dashed #b8d4f0; border-radius: 8px;
-      background: #f5f9ff; cursor: pointer; transition: all 0.15s; text-align: center;
-    }
+    .dropzone { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 16px; border: 2px dashed #b8d4f0; border-radius: 8px; background: #f5f9ff; cursor: pointer; transition: all 0.15s; text-align: center; }
     .dropzone:hover, .dropzone:active { border-color: #4a90e2; background: #eaf3ff; }
     .dropzone .icon { font-size: 28px; line-height: 1; margin-bottom: 6px; }
     .dropzone .label { font-weight: 600; color: #2563a3; font-size: 14px; }
     .dropzone .hint { font-size: 11px; color: #666; margin-top: 4px; }
     .dropzone input[type=file] { display: none; }
-
     details { font-size: 13px; }
     details summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; color: #2563a3; }
   </style>
@@ -218,35 +117,30 @@
 
   <div id="pwa-status">Checking offline cache...</div>
 
-  <!-- ============ CONTEXT ============ -->
   <div class="section">
     <details open>
       <summary>About this project</summary>
-
       <p style="font-size:13px;margin:0 0 12px;">
         This project applies knowledge distillation to 3D cerebrovascular segmentation. A high-capacity nnU-Net teacher, provided as a Docker image, produces reference segmentations. A compact 3D U-Net student is trained to reproduce the teacher's outputs with substantially fewer parameters, so that inference becomes feasible on a mobile phone. The student is exported to ONNX and executed in the browser via ONNX Runtime Web.
       </p>
-
       <h2>Definitions</h2>
       <div class="defs">
         <div class="def"><div class="term">Teacher model</div><div class="text">An nnU-Net ensemble covering 5 anatomical regions across 11 fold-models, totalling 970M parameters (8.29 GB Docker image). It serves as the reference model and runs on a workstation GPU.</div></div>
         <div class="def"><div class="term">Student model</div><div class="text">A compact 3D U-Net with 6.23M parameters (25 MB ONNX file). It is trained to match the teacher's segmentation outputs and runs entirely on the mobile device.</div></div>
         <div class="def"><div class="term">Voxel</div><div class="text">A volumetric pixel. CT and MRA volumes are dense 3D grids of voxels, for example 147 x 176 x 158 (4.1 million voxels). Segmentation assigns a vessel class label to each voxel.</div></div>
         <div class="def"><div class="term">Vessel class</div><div class="text">A named cerebral blood vessel, such as R-ICA, L-M1, or Basilar artery. The TopBrain dataset defines 42 vessel classes plus background.</div></div>
-        <div class="def"><div class="term">Dice score</div><div class="text">A measure of voxel-set overlap between a prediction and the ground truth. Ranges from 0 (no overlap) to 1 (perfect overlap). The merged score treats all vessels as one class. The macro score averages per-class Dice across vessel classes present in the ground truth.</div></div>
-        <div class="def"><div class="term">Dataset</div><div class="text">TopBrain 2025, released by the University of Zurich. 25 patients, each with a CTA and an MRA volume (50 volumes total), annotated with 43 classes. This interface uses the 10 held-out test volumes.</div></div>
+        <div class="def"><div class="term">Dice score</div><div class="text">A measure of voxel-set overlap between a prediction and the ground truth. Ranges from 0 (no overlap) to 1 (perfect overlap).</div></div>
+        <div class="def"><div class="term">Dataset</div><div class="text">TopBrain 2025. 25 patients, each with a CTA and an MRA volume (50 volumes total), annotated with 43 classes.</div></div>
       </div>
-
       <h2>Model comparison</h2>
       <div class="model-info">
         <div class="item teacher">
           <div class="k">Teacher model</div>
           <div class="v">nnU-Net ensemble (5 regions, 11 fold-models)</div>
           <div style="font-size:12px;color:#555;margin-top:4px;">
-            970M parameters in total, 88.22M per fold-model<br>
+            970M parameters in total<br>
             8.29 GB Docker image<br>
-            Validation Dice: 0.938 merged, 0.921 macro<br>
-            Approx. 240 s per scan on a workstation GPU
+            Validation Dice: 0.938 merged, 0.921 macro
           </div>
         </div>
         <div class="item student">
@@ -255,29 +149,18 @@
           <div style="font-size:12px;color:#555;margin-top:4px;">
             6.23M parameters, 25 MB ONNX file<br>
             128^3 patches at 0.9 mm isotropic spacing<br>
-            Validation Dice: 0.810 merged, 0.551 macro<br>
-            Approx. 60 s per scan on this device
+            Validation Dice: 0.810 merged, 0.551 macro
           </div>
         </div>
       </div>
-
       <div class="comparison-card">
         <div class="metric"><div class="num">155.8x</div><div class="desc">fewer parameters</div></div>
         <div class="metric"><div class="num">332x</div><div class="desc">smaller file size</div></div>
         <div class="metric"><div class="num">86.4%</div><div class="desc">of teacher merged Dice</div></div>
       </div>
-
-      <h2>Interface overview</h2>
-      <ul style="font-size:13px;padding-left:20px;margin:6px 0;">
-        <li><strong>Test cases:</strong> 5 patients, each with a CTA and an MRA scan, held out from training. Every case has teacher prediction and ground-truth annotations bundled for comparison.</li>
-        <li><strong>Metrics panel:</strong> teacher and student Dice scores, computed against the ground truth for the selected case.</li>
-        <li><strong>Viewer:</strong> three orthogonal planes (axial: top-down, coronal: front, sagittal: side). Overlays show ground truth in red, teacher in blue, student in green.</li>
-        <li><strong>Upload:</strong> accepts NIfTI volumes (<code>.nii.gz</code>) for inference. All preprocessing and inference occur locally in the browser.</li>
-      </ul>
     </details>
   </div>
 
-  <!-- ============ CASES ============ -->
   <div class="section">
     <div class="section-title">Test cases (select one to run the student model)</div>
     <div id="case-grid"></div>
@@ -318,7 +201,6 @@
     <div id="upload-status" style="font-size: 12px; color: #666; margin-top: 8px;"></div>
   </div>
 
-  <!-- NEW BLOCK: GT Upload for Evaluation -->
   <div class="section" id="gt-upload-section" style="display:none;">
     <div class="section-title">Optional: Upload Ground Truth for Evaluation</div>
     <p style="font-size:12px;color:#666;margin:0 0 12px;">
@@ -332,11 +214,102 @@
     <div id="upload-gt-status" style="font-size: 12px; color: #666; margin-top: 8px;"></div>
   </div>
 
-  <script src="nifti.js?v=20261025h"></script>
-  <script src="preprocess.js?v=20261025h"></script>
-  <script src="inference.js?v=20261025h"></script>
-  <script src="viewer.js?v=20261025h"></script>
-  <script src="metrics.js?v=20261025h"></script>
+  <script src="nifti.js?v=20261025v13"></script>
+  <script src="preprocess.js?v=20261025v13"></script>
+  <script src="inference.js?v=20261025v13"></script>
+  <script src="viewer.js?v=20261025v13"></script>
+  <script src="metrics.js?v=20261025v13"></script>
+
+  <!-- Embedded Python code to bypass Cloudflare routing -->
+  <script type="text/plain" id="py-preprocess-source">
+import struct
+import gzip
+import io
+import numpy as np
+from scipy.ndimage import zoom
+
+def read_nifti_from_bytes(data_bytes):
+    if data_bytes[:2] == b'\x1f\x8b':
+        data_bytes = gzip.decompress(data_bytes)
+    
+    sizeof_hdr = struct.unpack('<i', data_bytes[0:4])[0]
+    if sizeof_hdr != 348:
+        raise ValueError(f"Not a NIfTI-1 file (sizeof_hdr={sizeof_hdr})")
+    
+    dims = struct.unpack('<8h', data_bytes[40:56])
+    nx, ny, nz = dims[1], dims[2], dims[3]
+    
+    datatype = struct.unpack('<h', data_bytes[70:72])[0]
+    bitpix = struct.unpack('<h', data_bytes[72:74])[0]
+    
+    pixdim = struct.unpack('<8f', data_bytes[76:108])
+    sx, sy, sz = pixdim[1], pixdim[2], pixdim[3]
+    
+    vox_offset = struct.unpack('<f', data_bytes[108:112])[0]
+    if vox_offset == 0:
+        vox_offset = 352
+    vox_offset = int(vox_offset)
+    
+    scl_slope = struct.unpack('<f', data_bytes[112:116])[0]
+    scl_inter = struct.unpack('<f', data_bytes[116:120])[0]
+    if scl_slope == 0 or np.isnan(scl_slope):
+        scl_slope = 1.0
+    if np.isnan(scl_inter):
+        scl_inter = 0.0
+    
+    sform = struct.unpack('<12f', data_bytes[280:328])
+    affine = np.array([
+        [sform[0], sform[1], sform[2], sform[3]],
+        [sform[4], sform[5], sform[6], sform[7]],
+        [sform[8], sform[9], sform[10], sform[11]],
+        [0, 0, 0, 1]
+    ])
+    
+    nvox = nx * ny * nz
+    dtype_map = {2: '<u1', 4: '<i2', 8: '<i4', 16: '<f4', 64: '<f8', 512: '<u2', 768: '<u4'}
+    if datatype not in dtype_map:
+        raise ValueError(f"Unsupported datatype: {datatype}")
+    
+    raw = np.frombuffer(data_bytes[vox_offset:vox_offset + nvox * (bitpix // 8)], dtype=dtype_map[datatype])
+    data = raw.astype(np.float32) * scl_slope + scl_inter
+    data = data.reshape((nx, ny, nz), order='F') # NIfTI is X-fastest
+    
+    data = np.transpose(data, (2, 1, 0))
+    
+    return data, (nz, ny, nx), (sz, sy, sx)
+
+def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbox=None):
+    data, shape, spacing = read_nifti_from_bytes(nii_bytes)
+    
+    if ref_bbox is None:
+        p01, p99 = np.percentile(data, [1, 99])
+        mask = data > (p01 + 0.1 * (p99 - p01))
+        coords = np.where(mask)
+        if len(coords[0]) == 0:
+            z0, z1, y0, y1, x0, x1 = 0, data.shape[0], 0, data.shape[1], 0, data.shape[2]
+        else:
+            z0 = max(0, int(coords[0].min()) - 5)
+            z1 = min(data.shape[0], int(coords[0].max()) + 5)
+            y0 = max(0, int(coords[1].min()) - 5)
+            y1 = min(data.shape[1], int(coords[1].max()) + 5)
+            x0 = max(0, int(coords[2].min()) - 5)
+            x1 = min(data.shape[2], int(coords[2].max()) + 5)
+    else:
+        z0, z1, y0, y1, x0, x1 = ref_bbox
+    
+    data_crop = data[z0:z1, y0:y1, x0:x1]
+    
+    zoom_factors = (spacing[0] / target_spacing[0], spacing[1] / target_spacing[1], spacing[2] / target_spacing[2])
+    order = 0 if is_label else 1
+    resampled = zoom(data_crop, zoom_factors, order=order)
+    
+    if is_label:
+        resampled = resampled.astype(np.uint8)
+    else:
+        resampled = resampled.astype(np.float32)
+    
+    return resampled.tobytes(), list(resampled.shape), [z0, z1, y0, y1, x0, x1], resampled.dtype.name
+  </script>
 
   <script>
     const DEV_MODE = new URLSearchParams(location.search).has('dev');
@@ -359,6 +332,20 @@
     let lastPrediction = null;
     let lastProcessedImg = null;
     let lastModality = null;
+
+    let pyodideInstance = null;
+    async function getPyodide() {
+      if (pyodideInstance) return pyodideInstance;
+      const statusEl = document.getElementById('upload-status');
+      if (statusEl) statusEl.textContent = "Loading Python environment (first time only, ~10s)...";
+      const py = await loadPyodide();
+      await py.loadPackage(["numpy", "scipy"]);
+      const pyPreEl = document.getElementById("py-preprocess-source");
+      if (!pyPreEl || !pyPreEl.textContent) throw new Error("Inline Python source not found");
+      py.runPython(pyPreEl.textContent);
+      pyodideInstance = py;
+      return py;
+    }
 
     async function loadClassNames() {
       const csv = await fetch('class_table.csv').then(r => r.text());
@@ -399,7 +386,6 @@
       const grid = document.getElementById('case-grid');
       grid.innerHTML = '';
 
-      // Header row
       const headerRow = document.createElement('div');
       headerRow.className = 'case-grid-header';
       headerRow.innerHTML = `
@@ -409,7 +395,6 @@
       `;
       grid.appendChild(headerRow);
 
-      // Patient rows
       const grouped = groupCasesByPatient(casesMeta.cases);
       for (const group of grouped) {
         const row = document.createElement('div');
@@ -469,28 +454,23 @@
     function clearProgress() { document.getElementById('progress').innerHTML = ''; }
     function showViewer() { document.getElementById('viewer-section').style.display = 'block'; }
 
-    // Class breakdown: summary strip + grouped bands with bars
     function renderClassTable(rows) {
       const container = document.getElementById('class-table-container');
-
       const withNames = rows.map(r => ({
         ...r,
         name: classNames?.get(r.cls) || `class_${r.cls}`,
         band: r.dice >= 0.7 ? 'high' : (r.dice < 0.4 ? 'low' : 'mid'),
       }));
-
       const high = withNames.filter(r => r.band === 'high').sort((a,b) => b.dice - a.dice);
       const mid  = withNames.filter(r => r.band === 'mid').sort((a,b) => b.dice - a.dice);
       const low  = withNames.filter(r => r.band === 'low').sort((a,b) => b.dice - a.dice);
-
       const summary = `
         <div class="class-summary">
           <div class="band high"><div class="num">${high.length}</div><div class="label">Dice >= 0.70</div></div>
           <div class="band mid"><div class="num">${mid.length}</div><div class="label">Dice 0.40-0.70</div></div>
-          <div class="band low"><div class="num">${low.length}</div><div class="label">Dice <div class="label">Low (&lt; 0.40)</div>lt; 0.40</div></div>
+          <div class="band low"><div class="num">${low.length}</div><div class="label">Low (&lt; 0.40)</div></div>
         </div>
       `;
-
       function renderGroup(list, label, cls) {
         if (list.length === 0) return '';
         const header = `<div class="class-group-header ${cls}">${label} (${list.length} vessel${list.length !== 1 ? 's' : ''})</div>`;
@@ -505,7 +485,6 @@
         `).join('');
         return `<div class="class-group">${header}${rows_html}</div>`;
       }
-
       container.innerHTML = summary
         + renderGroup(high, 'Vessels with strong prediction (Dice ≥ 0.70)', 'high')
         + renderGroup(mid, 'Vessels with moderate prediction (0.40 ≤ Dice < 0.70)', 'mid')
@@ -516,32 +495,26 @@
       if (activeTile) activeTile.classList.remove('loading');
       activeTile = tileEl;
       tileEl.classList.add('loading');
-
       setStatus(`Loading ${meta.id}`, true);
       try {
         const imgRaw = await loadNiftiFromUrl(meta.paths.volume);
         const gtImg  = await loadNiftiFromUrl(meta.paths.gt);
         const teaImg = await loadNiftiFromUrl(meta.paths.teacher);
-
         setStatus(`Normalizing ${meta.id} (${meta.modality.toUpperCase()})`, true);
         const imgNorm = normalize(imgRaw, meta.modality, preprocessingJson);
-
         setStatus(`Running student inference on ${meta.id} (approx. 60 s)`, true);
         const t0 = performance.now();
         const studentPred = await inferVolume(imgNorm, invalidClasses[meta.modality], setProgress);
         const dt = (performance.now() - t0) / 1000;
         clearProgress();
-
         const stuMetrics = dicePerClass(gtImg.data, studentPred.data);
         const teaMetrics = dicePerClass(gtImg.data, teaImg.data);
-
         setStatus(`${meta.id}: inference completed in ${dt.toFixed(1)} s. Volume shape ${imgRaw.shape.join(' x ')} at 0.9 mm.`, false);
         showViewer();
         viewer.setData({
           img: imgRaw, gt: gtImg, teacher: teaImg, student: studentPred,
           defaultSlice: meta.default_slice,
         });
-
         document.getElementById('metrics').innerHTML = `
           <div class="cell tea"><div class="label">Teacher merged Dice</div><div class="value">${teaMetrics.merged.toFixed(3)}</div></div>
           <div class="cell stu"><div class="label">Student merged Dice</div><div class="value">${stuMetrics.merged.toFixed(3)}</div></div>
@@ -550,7 +523,6 @@
           <div class="cell delta"><div class="label">Delta merged (student - teacher)</div><div class="value">${(stuMetrics.merged - teaMetrics.merged).toFixed(3)}</div></div>
           <div class="cell delta"><div class="label">Delta macro (student - teacher)</div><div class="value">${(stuMetrics.macro - teaMetrics.macro).toFixed(3)}</div></div>
         `;
-
         lastClassTable = stuMetrics.perClass;
         if (document.getElementById('class-table-container').classList.contains('open')) {
           renderClassTable(lastClassTable);
@@ -580,28 +552,48 @@
         const isMR = /mr|mra|t1|flair/i.test(file.name);
         const modality = isMR ? 'mr' : 'ct';
         
-        // Smart check: If spacing is already ~0.9mm, assume it's preprocessed.
         const sp = imgRaw.spacing;
         const isPreprocessed = Math.abs(sp[0] - 0.9) < 0.05 && Math.abs(sp[1] - 0.9) < 0.05 && Math.abs(sp[2] - 0.9) < 0.05;
-        
+        let imgPre;
+
         if (isPreprocessed) {
-          // Re-parse without transpose
           const buf = await file.arrayBuffer();
           imgRaw = await parseNifti(buf, false);
-          statusEl.textContent = `Detected preprocessed volume (0.9mm). Skipping crop/resample. Running inference...`;
+          imgPre = preprocessForInference(imgRaw, modality, preprocessingJson, true);
+          statusEl.textContent = `Detected preprocessed volume. Running inference...`;
         } else {
-          statusEl.textContent = `Preprocessing as ${modality.toUpperCase()} (crop and resample to 0.9 mm)`;
+          statusEl.textContent = `Running Python preprocessing (first time takes ~10s)...`;
+          const py = await getPyodide();
+          const arrayBuffer = await file.arrayBuffer();
+          py.globals.set("img_bytes", new Uint8Array(arrayBuffer));
+          py.globals.set("modality", modality);
+          
+          const resultJson = py.runPython(`
+import py_preprocess
+import json
+img_out, shape, bbox, dtype = py_preprocess.preprocess_from_bytes(
+    bytes(img_bytes), False, modality, [0.9, 0.9, 0.9], None
+)
+json.dumps({"shape": shape, "bbox": bbox, "dtype": dtype, "length": len(img_out)})
+          `);
+          const parsed = JSON.parse(resultJson);
+          const imgBytesJS = py.runPython("img_out");
+          const parsedData = imgBytesJS.toJs ? imgBytesJS.toJs() : new Uint8Array(imgBytesJS.buffer || imgBytesJS);
+          const imgData = new Float32Array(parsedData.buffer ? parsedData.buffer : parsedData);
+          
+          imgPre = { data: imgData, shape: parsed.shape, spacing: [0.9, 0.9, 0.9] };
+          window.lastImageBbox = parsed.bbox;
+          imgPre = normalize(imgPre, modality, preprocessingJson);
         }
-        
-        const imgPre = preprocessForInference(imgRaw, modality, preprocessingJson, isPreprocessed);
+
         statusEl.textContent = `Running student inference on volume of shape ${imgPre.shape.join(' x ')}`;
         const studentPred = await inferVolume(imgPre, invalidClasses[modality], setProgress);
         clearProgress();
+        
         lastPrediction = studentPred;
         lastProcessedImg = imgPre;
         lastModality = modality;
-        window.lastImageBbox = imgRaw._bbox; // Save the raw image bbox
-        statusEl.textContent = `Done (${file.name}). No ground truth is available for uploaded volumes, so only the student prediction is shown.`;
+        
         showViewer();
         const zeroArr = new Uint8Array(imgPre.data.length);
         viewer.setData({
@@ -611,11 +603,10 @@
           student: studentPred,
           defaultSlice: Math.floor(imgPre.shape[0] / 2),
         });
-        document.getElementById('metrics').innerHTML = `<div style="color:#666;font-size:13px;grid-column:span 2;">No ground truth for uploaded volume. Student prediction is displayed without metrics.</div>`;
+        document.getElementById('metrics').innerHTML = `<div style="color:#666;font-size:13px;grid-column:span 2;">${isMulti ? 'Computing GT metrics...' : 'Upload GT mask to compute Dice scores.'}</div>`;
         lastClassTable = null;
         document.getElementById('gt-upload-section').style.display = 'block';
         
-        // If the user selected 2 files at once, automatically run the GT evaluation
         if (isMulti) {
           const fakeEvt = { target: { files: [gtFile] } };
           await handleUploadGT(fakeEvt);
@@ -636,48 +627,59 @@
         statusEl.textContent = "Error: Please upload the primary image first.";
         return;
       }
-
+      
       statusEl.textContent = `Reading GT ${file.name}...`;
       try {
         let gtRaw = await loadNiftiFromFile(file);
-        statusEl.textContent = "Processing GT mask...";
-        
-        // Smart check: If spacing is already ~0.9mm, skip crop/resample
         const sp = gtRaw.spacing;
         const isPreprocessed = Math.abs(sp[0] - 0.9) < 0.05 && Math.abs(sp[1] - 0.9) < 0.05 && Math.abs(sp[2] - 0.9) < 0.05;
         
+        let gtPre;
         if (isPreprocessed) {
           const buf = await file.arrayBuffer();
           gtRaw = await parseNifti(buf, false);
+          gtPre = gtRaw;
+          statusEl.textContent = "Processing preprocessed GT mask...";
+        } else {
+          statusEl.textContent = "Running Python preprocessing on raw GT...";
+          const py = await getPyodide();
+          const arrayBuffer = await file.arrayBuffer();
+          py.globals.set("gt_bytes", new Uint8Array(arrayBuffer));
+          py.globals.set("modality", lastModality);
+          py.globals.set("ref_bbox", py.toPy(window.lastImageBbox));
+          
+          const resultJson = py.runPython(`
+import py_preprocess
+import json
+gt_out, shape, _, dtype = py_preprocess.preprocess_from_bytes(
+    bytes(gt_bytes), True, modality, [0.9, 0.9, 0.9], list(ref_bbox)
+)
+json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
+          `);
+          const parsed = JSON.parse(resultJson);
+          const gtBytesJS = py.runPython("gt_out");
+          const parsedData = gtBytesJS.toJs ? gtBytesJS.toJs() : new Uint8Array(gtBytesJS.buffer || gtBytesJS);
+          const gtData = new Float32Array(parsedData.buffer ? parsedData.buffer : parsedData);
+          gtPre = { data: gtData, shape: parsed.shape, spacing: [0.9, 0.9, 0.9] };
         }
         
-        let gtPre = gtRaw;
-        
-        if (!isPreprocessed) {
-          // Raw GT: crop to same bbox as the image
-          if (window.lastImageBbox) {
-            gtPre = cropToBbox(gtPre, window.lastImageBbox);
-          }
-        }
-        
-        // Force GT shape to exactly match the Image's processed shape
+        // Force shape match just in case
         const targetShape = lastProcessedImg.shape;
-        const [nD, nH, nW] = targetShape;
-        const [oD, oH, oW] = gtPre.shape;
-        
-        if (oD !== nD || oH !== nH || oW !== nW) {
-          const resizedData = new Float32Array(nD * nH * nW);
-          for (let z = 0; z < nD; z++) {
-            const oz = Math.min(oD - 1, Math.floor(z * oD / nD));
-            for (let y = 0; y < nH; y++) {
-              const oy = Math.min(oH - 1, Math.floor(y * oH / nH));
-              for (let x = 0; x < nW; x++) {
-                const ox = Math.min(oW - 1, Math.floor(x * oW / nW));
-                resizedData[z * nH * nW + y * nW + x] = gtPre.data[oz * oH * oW + oy * oW + ox];
-              }
-            }
-          }
-          gtPre = { data: resizedData, shape: targetShape, spacing: gtPre.spacing, affine: gtPre.affine };
+        if (gtPre.shape[0] !== targetShape[0] || gtPre.shape[1] !== targetShape[1] || gtPre.shape[2] !== targetShape[2]) {
+           const [nD, nH, nW] = targetShape;
+           const [oD, oH, oW] = gtPre.shape;
+           const resizedData = new Float32Array(nD * nH * nW);
+           for (let z = 0; z < nD; z++) {
+             const oz = Math.min(oD - 1, Math.floor(z * oD / nD));
+             for (let y = 0; y < nH; y++) {
+               const oy = Math.min(oH - 1, Math.floor(y * oH / nH));
+               for (let x = 0; x < nW; x++) {
+                 const ox = Math.min(oW - 1, Math.floor(x * oW / nW));
+                 resizedData[z * nH * nW + y * nW + x] = gtPre.data[oz * oH * oW + oy * oW + ox];
+               }
+             }
+           }
+           gtPre = { data: resizedData, shape: targetShape, spacing: gtPre.spacing, affine: gtPre.affine };
         }
         
         statusEl.textContent = "Calculating metrics...";
@@ -726,7 +728,7 @@
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v6');
+      const cache = await caches.open('topbrain-v14');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
