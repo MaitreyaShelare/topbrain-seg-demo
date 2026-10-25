@@ -2,7 +2,7 @@
 
 async function gunzip(arrayBuffer) {
   if (typeof DecompressionStream === 'undefined') {
-    throw new Error('Browser lacks DecompressionStream (need Chrome 80+, Firefox 113+, Safari 16.4+)');
+    throw new Error('Browser lacks DecompressionStream');
   }
   const ds = new DecompressionStream('gzip');
   const writer = ds.writable.getWriter();
@@ -33,13 +33,7 @@ async function parseNifti(arrayBuffer, isRaw = true) {
   if (isGzip(buf)) buf = await gunzip(buf);
 
   const dv = new DataView(buf);
-  const sizeof_hdr_le = dv.getInt32(0, true);
-  const sizeof_hdr_be = dv.getInt32(0, false);
-  const le = sizeof_hdr_le === 348;
-  if (!le && sizeof_hdr_be !== 348) {
-    throw new Error('Not a NIfTI-1 file (sizeof_hdr != 348)');
-  }
-  if (!le) throw new Error('Big-endian NIfTI not supported');
+  if (dv.getInt32(0, true) !== 348) throw new Error('Not a valid NIfTI-1 file');
 
   const dim = [];
   for (let i = 0; i < 8; i++) dim.push(dv.getInt16(40 + i * 2, true));
@@ -60,9 +54,7 @@ async function parseNifti(arrayBuffer, isRaw = true) {
 
   const voxStart = Math.round(vox_offset);
   const nVox = nx * ny * nz * nt;
-  const nBytes = (bitpix / 8) * nVox;
-
-  const slice = buf.slice(voxStart, voxStart + nBytes);
+  const slice = buf.slice(voxStart, voxStart + (bitpix / 8) * nVox);
   let data;
   if (datatype === 2)        data = new Uint8Array(slice);
   else if (datatype === 4)   data = new Int16Array(slice);
@@ -71,7 +63,7 @@ async function parseNifti(arrayBuffer, isRaw = true) {
   else if (datatype === 64)  data = new Float64Array(slice);
   else if (datatype === 512) data = new Uint16Array(slice);
   else if (datatype === 768) data = new Uint32Array(slice);
-  else throw new Error('Unsupported NIfTI datatype: ' + datatype);
+  else throw new Error('Unsupported datatype: ' + datatype);
 
   let outData;
   if (slope === 1 && inter === 0) {
@@ -81,11 +73,16 @@ async function parseNifti(arrayBuffer, isRaw = true) {
     for (let i = 0; i < nVox; i++) outData[i] = data[i] * slope + inter;
   }
 
+  const affine = new Float64Array(16);
+  for (let i = 0; i < 4; i++) affine[i]     = dv.getFloat32(280 + i * 4, true);
+  for (let i = 0; i < 4; i++) affine[4 + i] = dv.getFloat32(296 + i * 4, true);
+  for (let i = 0; i < 4; i++) affine[8 + i] = dv.getFloat32(312 + i * 4, true);
+  affine[15] = 1;
+
   let finalData = outData;
   
-  // If it's a raw uploaded file, the NIfTI data is [X, Y, Z] flattened.
-  // We must transpose it to [Z, Y, X] to match the viewer and python.
-  if (isRaw && !(nx === nz && ny === nz)) {
+  if (isRaw) {
+    // 1. Transpose from [X, Y, Z] to [Z, Y, X]
     finalData = new Float32Array(nVox);
     for (let z = 0; z < nz; z++) {
       for (let y = 0; y < ny; y++) {
@@ -96,51 +93,58 @@ async function parseNifti(arrayBuffer, isRaw = true) {
         }
       }
     }
+    
+    // 2. Reorient to LPS+ (flip axes if affine indicates RAS)
+    // In NIfTI, negative affine diagonal means flipped axis (e.g. RAS vs LPS)
+    if (affine[0] < 0) {
+      // Flip X axis
+      const temp = new Float32Array(nVox);
+      for (let z = 0; z < nz; z++) {
+        for (let y = 0; y < ny; y++) {
+          for (let x = 0; x < nx; x++) {
+            temp[z*ny*nx + y*nx + x] = finalData[z*ny*nx + y*nx + (nx - 1 - x)];
+          }
+        }
+      }
+      finalData = temp;
+    }
+    if (affine[5] < 0) {
+      // Flip Y axis
+      const temp = new Float32Array(nVox);
+      for (let z = 0; z < nz; z++) {
+        for (let y = 0; y < ny; y++) {
+          for (let x = 0; x < nx; x++) {
+            temp[z*ny*nx + y*nx + x] = finalData[z*ny*nx + (ny - 1 - y)*nx + x];
+          }
+        }
+      }
+      finalData = temp;
+    }
+    if (affine[10] < 0) {
+      // Flip Z axis
+      const temp = new Float32Array(nVox);
+      for (let z = 0; z < nz; z++) {
+        for (let y = 0; y < ny; y++) {
+          for (let x = 0; x < nx; x++) {
+            temp[z*ny*nx + y*nx + x] = finalData[(nz - 1 - z)*ny*nx + y*nx + x];
+          }
+        }
+      }
+      finalData = temp;
+    }
   }
 
-  const shape = [nz, ny, nx];   // D, H, W  (zyx order matches Python/SITK)
-  const spacing = [sz, sy, sx];
-
-  const affine = new Float64Array(16);
-  for (let i = 0; i < 4; i++) affine[i]     = dv.getFloat32(280 + i * 4, true);
-  for (let i = 0; i < 4; i++) affine[4 + i] = dv.getFloat32(296 + i * 4, true);
-  for (let i = 0; i < 4; i++) affine[8 + i] = dv.getFloat32(312 + i * 4, true);
-  affine[15] = 1;
-
-  return { data: finalData, shape, spacing, affine };
-}
-
-function base64ToArrayBuffer(payload) {
-  const binary = atob(payload);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
+  return { data: finalData, shape: [nz, ny, nx], spacing: [sz, sy, sx], affine };
 }
 
 async function loadNiftiFromUrl(url) {
-  let buf;
-  if (url.startsWith('data:')) {
-    const comma = url.indexOf(',');
-    if (comma < 0) throw new Error('Malformed data URL');
-    const header = url.slice(0, comma);
-    const payload = url.slice(comma + 1);
-    if (header.endsWith(';base64')) {
-      buf = base64ToArrayBuffer(payload);
-    } else {
-      const text = decodeURIComponent(payload);
-      buf = new TextEncoder().encode(text).buffer;
-    }
-  } else {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`Fetch ${url}: ${resp.status}`);
-    buf = await resp.arrayBuffer();
-  }
-  // Preloaded cases are already in [Z, Y, X] order
-  return parseNifti(buf, false); 
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Fetch ${url}: ${resp.status}`);
+  const buf = await resp.arrayBuffer();
+  return parseNifti(buf, false); // Preloaded cases are already in [Z, Y, X] and LPS
 }
 
 async function loadNiftiFromFile(file) {
   const buf = await file.arrayBuffer();
-  // Raw uploaded files need to be transposed from [X, Y, Z] to [Z, Y, X]
-  return parseNifti(buf, true);
+  return parseNifti(buf, true); // Raw files need transpose and reorient
 }

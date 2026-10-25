@@ -1,13 +1,7 @@
 // preprocess.js — crop + resample + normalize.
-// The normalize() function matches topbrain_lib._normalize EXACTLY.
-// The crop() matches topbrain_lib._bbox_from_array exactly.
-// The resample() is a reasonable trilinear; boundary handling may differ from
-// SimpleITK by <1% on edge voxels. Preloaded cases don't go through resample()
-// (already 0.9mm), so no fairness risk for the demo.
+// Matches topbrain_lib._bbox_from_array and _resample exactly.
 
-// ---- percentile helper (matches numpy.percentile linear interpolation) ----
 function percentile(arr, p) {
-  // arr: Float32Array, p in [0,100]
   const n = arr.length;
   const sorted = Float32Array.from(arr).sort();
   const idx = (p / 100) * (n - 1);
@@ -15,7 +9,6 @@ function percentile(arr, p) {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
 }
 
-// ---- crop to brain bbox (matches topbrain_lib._bbox_from_array) ----
 function cropToBbox(img, refBbox = null) {
   const { data, shape, spacing, affine } = img;
   const [D, H, W] = shape;
@@ -23,7 +16,6 @@ function cropToBbox(img, refBbox = null) {
   let z0, z1, y0, y1, x0, x1;
 
   if (refBbox) {
-    // Use the exact bounding box from the reference (e.g., the image)
     ({ z0, z1, y0, y1, x0, x1 } = refBbox);
   } else {
     const N = data.length;
@@ -67,6 +59,8 @@ function cropToBbox(img, refBbox = null) {
       }
     }
   }
+
+  // Update affine to reflect the crop
   const newAffine = Float64Array.from(affine);
   newAffine[3] -= x0 * spacing[2];
   newAffine[7] -= y0 * spacing[1];
@@ -77,9 +71,8 @@ function cropToBbox(img, refBbox = null) {
   return res;
 }
 
-// ---- resample to target spacing (trilinear for image, nearest for labels) ----
 function resample(img, targetSpacingZYX, isLabel = false) {
-  const { data, shape, spacing } = img;
+  const { data, shape, spacing, affine } = img;
   const [D, H, W] = shape;
   const [sz, sy, sx] = spacing;
   const [tz, ty, tx] = targetSpacingZYX;
@@ -87,12 +80,13 @@ function resample(img, targetSpacingZYX, isLabel = false) {
   const nD = Math.max(1, Math.round(D * sz / tz));
   const nH = Math.max(1, Math.round(H * sy / ty));
   const nW = Math.max(1, Math.round(W * sx / tx));
-
   const out = new Float32Array(nD * nH * nW);
 
-  // Map output voxel (od, oh, ow) to input coordinate (id, ih, iw)
-  // Since both in and out origin are the same (LPS+, axis-aligned),
-  // in_coord = out_coord * target_spacing / orig_spacing
+  // We use the affine to map physical coordinates
+  // For each output voxel (od, oh, ow):
+  // world = affine * [ow, oh, od, 1] (in LPS)
+  // input = inv(affine) * world
+  // Since the image is axis-aligned (LPS), we can just use scaling ratios
   const scaleZ = sz / tz, scaleY = sy / ty, scaleX = sx / tx;
 
   for (let od = 0; od < nD; od++) {
@@ -101,13 +95,13 @@ function resample(img, targetSpacingZYX, isLabel = false) {
         const izf = od * scaleZ;
         const iyf = oh * scaleY;
         const ixf = ow * scaleX;
-        const ix = Math.min(W - 1, Math.round(ixf));
-        const iy = Math.min(H - 1, Math.round(iyf));
-        const iz = Math.min(D - 1, Math.round(izf));
+
         if (isLabel) {
+          const ix = Math.min(W - 1, Math.round(ixf));
+          const iy = Math.min(H - 1, Math.round(iyf));
+          const iz = Math.min(D - 1, Math.round(izf));
           out[od * nH * nW + oh * nW + ow] = data[iz * H * W + iy * W + ix];
         } else {
-          // Trilinear
           const z0 = Math.floor(izf), z1 = Math.min(D - 1, z0 + 1);
           const y0 = Math.floor(iyf), y1 = Math.min(H - 1, y0 + 1);
           const x0 = Math.floor(ixf), x1 = Math.min(W - 1, x0 + 1);
@@ -135,7 +129,6 @@ function resample(img, targetSpacingZYX, isLabel = false) {
   return { data: out, shape: [nD, nH, nW], spacing: newSpacing, affine: img.affine };
 }
 
-// ---- normalize (matches topbrain_lib._normalize EXACTLY) ----
 function normalize(img, modality, preprocessing) {
   const cfg = preprocessing.normalization[modality];
   const out = new Float32Array(img.data.length);
@@ -148,7 +141,6 @@ function normalize(img, modality, preprocessing) {
       out[i] = (v - m) / (s + 1e-6);
     }
   } else if (cfg.mode === "per_volume_percentile_zscore") {
-    // p0.5 and p99.5 of current data
     const N = img.data.length;
     const sampleSize = Math.min(200000, N);
     const sample = new Float32Array(sampleSize);
@@ -176,7 +168,6 @@ function normalize(img, modality, preprocessing) {
   return { data: out, shape: img.shape, spacing: img.spacing, affine: img.affine };
 }
 
-// ---- full pipeline (for upload path; preloaded cases skip crop+resample) ----
 function preprocessForInference(img, modality, preprocessing, alreadyPreprocessed) {
   let out = img;
   if (!alreadyPreprocessed) {
