@@ -52,7 +52,7 @@ async function parseNifti(arrayBuffer, isRaw = true) {
   for (let i = 0; i < 4; i++) affine[8 + i] = dv.getFloat32(312 + i * 4, true);
   affine[15] = 1;
 
-  // Calculate true physical spacing from affine matrix (matches SimpleITK)
+  // Calculate true physical spacing from affine matrix
   const sx = Math.hypot(affine[0], affine[4], affine[8]) || pixdim[1] || 1;
   const sy = Math.hypot(affine[1], affine[5], affine[9]) || pixdim[2] || 1;
   const sz = Math.hypot(affine[2], affine[6], affine[10]) || pixdim[3] || 1;
@@ -84,12 +84,6 @@ async function parseNifti(arrayBuffer, isRaw = true) {
     for (let i = 0; i < nVox; i++) outData[i] = data[i] * slope + inter;
   }
 
-  const affine = new Float64Array(16);
-  for (let i = 0; i < 4; i++) affine[i]     = dv.getFloat32(280 + i * 4, true);
-  for (let i = 0; i < 4; i++) affine[4 + i] = dv.getFloat32(296 + i * 4, true);
-  for (let i = 0; i < 4; i++) affine[8 + i] = dv.getFloat32(312 + i * 4, true);
-  affine[15] = 1;
-
   let finalData = outData;
   
   if (isRaw) {
@@ -106,9 +100,7 @@ async function parseNifti(arrayBuffer, isRaw = true) {
     }
     
     // 2. Reorient to LPS+ (flip axes if affine indicates RAS)
-    // In NIfTI, negative affine diagonal means flipped axis (e.g. RAS vs LPS)
     if (affine[0] < 0) {
-      // Flip X axis
       const temp = new Float32Array(nVox);
       for (let z = 0; z < nz; z++) {
         for (let y = 0; y < ny; y++) {
@@ -120,7 +112,6 @@ async function parseNifti(arrayBuffer, isRaw = true) {
       finalData = temp;
     }
     if (affine[5] < 0) {
-      // Flip Y axis
       const temp = new Float32Array(nVox);
       for (let z = 0; z < nz; z++) {
         for (let y = 0; y < ny; y++) {
@@ -132,7 +123,6 @@ async function parseNifti(arrayBuffer, isRaw = true) {
       finalData = temp;
     }
     if (affine[10] < 0) {
-      // Flip Z axis
       const temp = new Float32Array(nVox);
       for (let z = 0; z < nz; z++) {
         for (let y = 0; y < ny; y++) {
