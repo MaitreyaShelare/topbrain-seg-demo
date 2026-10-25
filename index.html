@@ -689,7 +689,9 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
           const parsed = JSON.parse(resultJson);
           const gtBytesJS = py.runPython("gt_out");
           const parsedData = gtBytesJS.toJs ? gtBytesJS.toJs() : new Uint8Array(gtBytesJS.buffer || gtBytesJS);
-          const gtData = new Float32Array(parsedData.buffer ? parsedData.buffer : parsedData);
+          // GT is uint8, not float32! Use the dtype passed from Python.
+          const ArrayType = parsed.dtype === 'uint8' ? Uint8Array : Float32Array;
+          const gtData = new ArrayType(parsedData.buffer ? parsedData.buffer : parsedData);
           gtPre = { data: gtData, shape: parsed.shape, spacing: [0.9, 0.9, 0.9] };
         }
         
@@ -758,7 +760,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v18');
+      const cache = await caches.open('topbrain-v19');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
