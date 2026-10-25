@@ -317,10 +317,12 @@ def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbo
     scale = np.array(target_spacing) / np.array(spacing)
     matrix = np.diag(scale)
     
+    # Calculate center-to-center offset for SimpleITK parity
+    offset = 0.5 * (scale - 1)
+    
     order = 0 if is_label else 1
-    # affine_transform with offset=0 exactly matches SimpleITK's corner alignment
     resampled = affine_transform(
-        data_crop, matrix, offset=0, output_shape=out_shape, order=order, mode='constant', cval=0
+        data_crop, matrix, offset=offset, output_shape=out_shape, order=order, mode='constant', cval=0
     )
     
     # Pad or crop to exact target_shape if there is a 1-voxel mismatch
@@ -754,7 +756,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v28');
+      const cache = await caches.open('topbrain-v29');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
