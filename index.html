@@ -228,7 +228,7 @@ import io
 import numpy as np
 from scipy.ndimage import zoom
 
-def read_nifti_from_bytes(data_bytes):
+def read_nifti_from_bytes(data_bytes, is_label=False):
     if data_bytes[:2] == b'\x1f\x8b':
         data_bytes = gzip.decompress(data_bytes)
     
@@ -271,7 +271,10 @@ def read_nifti_from_bytes(data_bytes):
         raise ValueError(f"Unsupported datatype: {datatype}")
     
     raw = np.frombuffer(data_bytes[vox_offset:vox_offset + nvox * (bitpix // 8)], dtype=dtype_map[datatype])
-    data = raw.astype(np.float32) * scl_slope + scl_inter
+    if is_label:
+        data = raw.astype(np.float32)
+    else:
+        data = raw.astype(np.float32) * scl_slope + scl_inter
     data = data.reshape((nx, ny, nz), order='F') # NIfTI is X-fastest
     
     data = np.transpose(data, (2, 1, 0))
@@ -284,7 +287,7 @@ def read_nifti_from_bytes(data_bytes):
     return data, (nz, ny, nx), (sz, sy, sx)
 
 def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbox=None, target_shape=None):
-    data, shape, spacing = read_nifti_from_bytes(nii_bytes)
+    data, shape, spacing = read_nifti_from_bytes(nii_bytes, is_label)
     
     if ref_bbox is None:
         p01, p99 = np.percentile(data, [1, 99])
@@ -606,7 +609,7 @@ json.dumps({"shape": shape, "bbox": bbox, "dtype": dtype, "length": len(img_out)
           const parsed = JSON.parse(resultJson);
           const imgBytesJS = py.runPython("img_out");
           const parsedData = imgBytesJS.toJs ? imgBytesJS.toJs() : new Uint8Array(imgBytesJS.buffer || imgBytesJS);
-          const imgData = new Float32Array(parsedData.buffer ? parsedData.buffer : parsedData);
+          const imgData = new Float32Array(parsedData.buffer, parsedData.byteOffset, parsedData.byteLength / 4);
           
           imgPre = { data: imgData, shape: parsed.shape, spacing: [0.9, 0.9, 0.9] };
           window.lastImageBbox = parsed.bbox;
@@ -689,7 +692,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
           const parsedData = gtBytesJS.toJs ? gtBytesJS.toJs() : new Uint8Array(gtBytesJS.buffer || gtBytesJS);
           // GT is uint8, not float32! Use the dtype passed from Python.
           const ArrayType = parsed.dtype === 'uint8' ? Uint8Array : Float32Array;
-          const gtData = new ArrayType(parsedData.buffer ? parsedData.buffer : parsedData);
+          const gtData = new ArrayType(parsedData.buffer, parsedData.byteOffset, parsedData.byteLength / ArrayType.BYTES_PER_ELEMENT);
           gtPre = { data: gtData, shape: parsed.shape, spacing: [0.9, 0.9, 0.9] };
         }
         
@@ -741,7 +744,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v23');
+      const cache = await caches.open('topbrain-v24');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
