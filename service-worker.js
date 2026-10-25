@@ -2,7 +2,7 @@
 // Strategy: precache all static assets on install, serve from cache on fetch,
 // fall back to network for anything uncached.
 
-const CACHE_NAME = 'topbrain-v5';
+const CACHE_NAME = 'topbrain-v6';
 
 // Assets to precache on install. All file paths relative to /
 const PRECACHE = [
@@ -34,10 +34,11 @@ const PRECACHE = [
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] install - sequential precache');
+  console.log('[SW] install - parallel precache, non-blocking');
+  self.skipWaiting();  // activate immediately; don't wait for precache
   event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      for (const url of PRECACHE) {
+    caches.open(CACHE_NAME).then((cache) => {
+      return Promise.all(PRECACHE.map(async (url) => {
         try {
           const resp = await fetch(url, { cache: 'reload', redirect: 'follow' });
           if (resp.ok || resp.type === 'opaqueredirect') {
@@ -48,9 +49,8 @@ self.addEventListener('install', (event) => {
         } catch (e) {
           console.warn('[SW] fetch failed', url, e.message);
         }
-      }
-      console.log('[SW] precache complete');
-    }).then(() => self.skipWaiting())
+      })).then(() => console.log('[SW] precache complete'));
+    })
   );
 });
 
