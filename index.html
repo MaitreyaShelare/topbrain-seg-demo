@@ -628,10 +628,17 @@
         const gtRaw = await loadNiftiFromFile(file);
         statusEl.textContent = "Preprocessing GT mask...";
         
-                let gtPre = gtRaw;
+                        let gtPre = gtRaw;
+        
+        // 1. Crop the GT to the same physical bounding box as the image
+        if (window.lastImageBbox) {
+          gtPre = cropToBbox(gtPre, window.lastImageBbox);
+        }
+        
+        // 2. Force the GT to exactly match the Image's processed shape (nearest neighbor)
         const targetShape = lastProcessedImg.shape;
         const [nD, nH, nW] = targetShape;
-        const [oD, oH, oW] = gtRaw.shape;
+        const [oD, oH, oW] = gtPre.shape;
         
         const resizedData = new Float32Array(nD * nH * nW);
         for (let z = 0; z < nD; z++) {
@@ -640,11 +647,12 @@
             const oy = Math.min(oH - 1, Math.floor(y * oH / nH));
             for (let x = 0; x < nW; x++) {
               const ox = Math.min(oW - 1, Math.floor(x * oW / nW));
-              resizedData[z * nH * nW + y * nW + x] = gtRaw.data[oz * oH * oW + oy * oW + ox];
+              resizedData[z * nH * nW + y * nW + x] = gtPre.data[oz * oH * oW + oy * oW + ox];
             }
           }
         }
-        gtPre = { data: resizedData, shape: targetShape, spacing: gtRaw.spacing, affine: gtRaw.affine };
+        gtPre = { data: resizedData, shape: targetShape, spacing: gtPre.spacing, affine: gtPre.affine };
+
 
                 statusEl.textContent = "Calculating metrics...";
         const stuMetrics = dicePerClass(gtPre.data, lastPrediction.data);
