@@ -1,5 +1,4 @@
 // nifti.js — minimal self-contained NIfTI-1 parser + gzip via DecompressionStream.
-// No external dependencies. Works on Chrome 80+, Firefox 113+, Safari 16.4+.
 
 async function gunzip(arrayBuffer) {
   if (typeof DecompressionStream === 'undefined') {
@@ -29,7 +28,7 @@ function isGzip(buf) {
   return b[0] === 0x1f && b[1] === 0x8b;
 }
 
-async function parseNifti(arrayBuffer) {
+async function parseNifti(arrayBuffer, isRaw = true) {
   let buf = arrayBuffer;
   if (isGzip(buf)) buf = await gunzip(buf);
 
@@ -82,20 +81,18 @@ async function parseNifti(arrayBuffer) {
     for (let i = 0; i < nVox; i++) outData[i] = data[i] * slope + inter;
   }
 
-  // FIX: The NIfTI file stores data in [X, Y, Z] order.
-  // We need to transpose it to [Z, Y, X] for the viewer and JS pipeline.
-  let transposedData;
-  if (nz === nx && ny === ny) {
-    // Fast path for cubic volumes: skip transpose
-    transposedData = outData;
-  } else {
-    transposedData = new Float32Array(nVox);
+  let finalData = outData;
+  
+  // If it's a raw uploaded file, the NIfTI data is [X, Y, Z] flattened.
+  // We must transpose it to [Z, Y, X] to match the viewer and python.
+  if (isRaw && !(nx === nz && ny === nz)) {
+    finalData = new Float32Array(nVox);
     for (let z = 0; z < nz; z++) {
       for (let y = 0; y < ny; y++) {
         for (let x = 0; x < nx; x++) {
-          // Original index in [X, Y, Z] order: x + y*nx + z*nx*ny
-          // Target index in [Z, Y, X] order: z + y*nz + x*nz*ny
-          transposedData[z + y*nz + x*nz*ny] = outData[x + y*nx + z*nx*ny];
+          const oldIdx = x + y * nx + z * nx * ny;
+          const newIdx = (z * ny * nx) + (y * nx) + x;
+          finalData[newIdx] = outData[oldIdx];
         }
       }
     }
@@ -104,18 +101,15 @@ async function parseNifti(arrayBuffer) {
   const shape = [nz, ny, nx];   // D, H, W  (zyx order matches Python/SITK)
   const spacing = [sz, sy, sx];
 
-  // sform rows for affine (offsets 280, 296, 312)
   const affine = new Float64Array(16);
   for (let i = 0; i < 4; i++) affine[i]     = dv.getFloat32(280 + i * 4, true);
   for (let i = 0; i < 4; i++) affine[4 + i] = dv.getFloat32(296 + i * 4, true);
   for (let i = 0; i < 4; i++) affine[8 + i] = dv.getFloat32(312 + i * 4, true);
   affine[15] = 1;
 
-  return { data: transposedData, shape, spacing, affine };
+  return { data: finalData, shape, spacing, affine };
 }
 
-// Decode a base64 payload into an ArrayBuffer without going through fetch().
-// Works from file:// URLs where fetch() rejects data: schemes on some browsers.
 function base64ToArrayBuffer(payload) {
   const binary = atob(payload);
   const bytes = new Uint8Array(binary.length);
@@ -126,7 +120,6 @@ function base64ToArrayBuffer(payload) {
 async function loadNiftiFromUrl(url) {
   let buf;
   if (url.startsWith('data:')) {
-    // Parse "data:<mime>[;base64],<payload>"
     const comma = url.indexOf(',');
     if (comma < 0) throw new Error('Malformed data URL');
     const header = url.slice(0, comma);
@@ -134,7 +127,6 @@ async function loadNiftiFromUrl(url) {
     if (header.endsWith(';base64')) {
       buf = base64ToArrayBuffer(payload);
     } else {
-      // Rare: non-base64 data URL. Decode URI-escaped payload as text.
       const text = decodeURIComponent(payload);
       buf = new TextEncoder().encode(text).buffer;
     }
@@ -143,10 +135,12 @@ async function loadNiftiFromUrl(url) {
     if (!resp.ok) throw new Error(`Fetch ${url}: ${resp.status}`);
     buf = await resp.arrayBuffer();
   }
-  return parseNifti(buf);
+  // Preloaded cases are already in [Z, Y, X] order
+  return parseNifti(buf, false); 
 }
 
 async function loadNiftiFromFile(file) {
   const buf = await file.arrayBuffer();
-  return parseNifti(buf);
+  // Raw uploaded files need to be transposed from [X, Y, Z] to [Z, Y, X]
+  return parseNifti(buf, true);
 }
