@@ -578,8 +578,18 @@
         const imgRaw = await loadNiftiFromFile(file);
         const isMR = /mr|mra|t1|flair/i.test(file.name);
         const modality = isMR ? 'mr' : 'ct';
-        statusEl.textContent = `Preprocessing as ${modality.toUpperCase()} (crop and resample to 0.9 mm)`;
-        const imgPre = preprocessForInference(imgRaw, modality, preprocessingJson, false);
+        
+        // Smart check: If spacing is already ~0.9mm, assume it's preprocessed.
+        const sp = imgRaw.spacing;
+        const isPreprocessed = Math.abs(sp[0] - 0.9) < 0.05 && Math.abs(sp[1] - 0.9) < 0.05 && Math.abs(sp[2] - 0.9) < 0.05;
+        
+        if (isPreprocessed) {
+          statusEl.textContent = `Detected preprocessed volume (0.9mm). Skipping crop/resample. Running inference...`;
+        } else {
+          statusEl.textContent = `Preprocessing as ${modality.toUpperCase()} (crop and resample to 0.9 mm)`;
+        }
+        
+        const imgPre = preprocessForInference(imgRaw, modality, preprocessingJson, isPreprocessed);
         statusEl.textContent = `Running student inference on volume of shape ${imgPre.shape.join(' x ')}`;
         const studentPred = await inferVolume(imgPre, invalidClasses[modality], setProgress);
         clearProgress();
@@ -626,35 +636,42 @@
       statusEl.textContent = `Reading GT ${file.name}...`;
       try {
         const gtRaw = await loadNiftiFromFile(file);
-        statusEl.textContent = "Preprocessing GT mask...";
+        statusEl.textContent = "Processing GT mask...";
         
-                        let gtPre = gtRaw;
+        let gtPre = gtRaw;
         
-        // 1. Crop the GT to the same physical bounding box as the image
-        if (window.lastImageBbox) {
-          gtPre = cropToBbox(gtPre, window.lastImageBbox);
+        // Smart check: If spacing is already ~0.9mm, skip crop/resample
+        const sp = gtRaw.spacing;
+        const isPreprocessed = Math.abs(sp[0] - 0.9) < 0.05 && Math.abs(sp[1] - 0.9) < 0.05 && Math.abs(sp[2] - 0.9) < 0.05;
+        
+        if (!isPreprocessed) {
+          // Raw GT: crop to same bbox as the image
+          if (window.lastImageBbox) {
+            gtPre = cropToBbox(gtPre, window.lastImageBbox);
+          }
         }
         
-        // 2. Force the GT to exactly match the Image's processed shape (nearest neighbor)
+        // Force GT shape to exactly match the Image's processed shape
         const targetShape = lastProcessedImg.shape;
         const [nD, nH, nW] = targetShape;
         const [oD, oH, oW] = gtPre.shape;
         
-        const resizedData = new Float32Array(nD * nH * nW);
-        for (let z = 0; z < nD; z++) {
-          const oz = Math.min(oD - 1, Math.floor(z * oD / nD));
-          for (let y = 0; y < nH; y++) {
-            const oy = Math.min(oH - 1, Math.floor(y * oH / nH));
-            for (let x = 0; x < nW; x++) {
-              const ox = Math.min(oW - 1, Math.floor(x * oW / nW));
-              resizedData[z * nH * nW + y * nW + x] = gtPre.data[oz * oH * oW + oy * oW + ox];
+        if (oD !== nD || oH !== nH || oW !== nW) {
+          const resizedData = new Float32Array(nD * nH * nW);
+          for (let z = 0; z < nD; z++) {
+            const oz = Math.min(oD - 1, Math.floor(z * oD / nD));
+            for (let y = 0; y < nH; y++) {
+              const oy = Math.min(oH - 1, Math.floor(y * oH / nH));
+              for (let x = 0; x < nW; x++) {
+                const ox = Math.min(oW - 1, Math.floor(x * oW / nW));
+                resizedData[z * nH * nW + y * nW + x] = gtPre.data[oz * oH * oW + oy * oW + ox];
+              }
             }
           }
+          gtPre = { data: resizedData, shape: targetShape, spacing: gtPre.spacing, affine: gtPre.affine };
         }
-        gtPre = { data: resizedData, shape: targetShape, spacing: gtPre.spacing, affine: gtPre.affine };
-
-
-                statusEl.textContent = "Calculating metrics...";
+        
+        statusEl.textContent = "Calculating metrics...";
         const stuMetrics = dicePerClass(gtPre.data, lastPrediction.data);
         
         document.getElementById('metrics').innerHTML = `
