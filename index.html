@@ -305,13 +305,23 @@ def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbo
     data_crop = data[z0:z1, y0:y1, x0:x1]
     
     if target_shape is not None:
-        # Force exact shape match to the Image to prevent JS tiling
         zoom_factors = (target_shape[0] / data_crop.shape[0], target_shape[1] / data_crop.shape[1], target_shape[2] / data_crop.shape[2])
     else:
         zoom_factors = (spacing[0] / target_spacing[0], spacing[1] / target_spacing[1], spacing[2] / target_spacing[2])
         
     order = 0 if is_label else 1
     resampled = zoom(data_crop, zoom_factors, order=order)
+    
+    # Force exact shape to prevent JS fallback tiling
+    if target_shape is not None:
+        target_shape = tuple(target_shape)
+        if resampled.shape != target_shape:
+            resampled = resampled[:target_shape[0], :target_shape[1], :target_shape[2]]
+            pad_z = target_shape[0] - resampled.shape[0]
+            pad_y = target_shape[1] - resampled.shape[1]
+            pad_x = target_shape[2] - resampled.shape[2]
+            if pad_z > 0 or pad_y > 0 or pad_x > 0:
+                resampled = np.pad(resampled, ((0, pad_z), (0, pad_y), (0, pad_x)))
     
     if is_label:
         resampled = resampled.astype(np.uint8)
@@ -748,7 +758,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v16');
+      const cache = await caches.open('topbrain-v17');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
