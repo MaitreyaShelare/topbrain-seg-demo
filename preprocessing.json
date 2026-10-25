@@ -1,0 +1,29 @@
+{
+  "target_spacing_mm": [
+    0.8999999999999999,
+    0.8999999999999999,
+    0.8999999999999999
+  ],
+  "patch_size": [
+    128,
+    128,
+    128
+  ],
+  "tiling": {
+    "stride_fraction": 0.75
+  },
+  "normalization": {
+    "ct": {
+      "mode": "global_clip_zscore",
+      "clip_low": -93.03922271728516,
+      "clip_high": 1681.9967041015625,
+      "mean": 223.02256774902344,
+      "std": 417.5319519042969
+    },
+    "mr": {
+      "mode": "per_volume_percentile_zscore",
+      "clip_low_pct": 0.5,
+      "clip_high_pct": 99.5
+    }
+  }
+}

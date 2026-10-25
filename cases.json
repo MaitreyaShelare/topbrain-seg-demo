@@ -1,0 +1,224 @@
+{
+  "cases": [
+    {
+      "id": "ct_002",
+      "modality": "ct",
+      "shape": [
+        147,
+        176,
+        158
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.9287,
+      "teacher_macro_dice": 0.9174,
+      "default_slice": 76,
+      "paths": {
+        "volume": "cases/ct_002.nii.gz",
+        "gt": "cases/ct_002.gt.nii.gz",
+        "teacher": "cases/ct_002.teacher.nii.gz"
+      }
+    },
+    {
+      "id": "mr_002",
+      "modality": "mr",
+      "shape": [
+        158,
+        177,
+        165
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.9607,
+      "teacher_macro_dice": 0.933,
+      "default_slice": 73,
+      "paths": {
+        "volume": "cases/mr_002.nii.gz",
+        "gt": "cases/mr_002.gt.nii.gz",
+        "teacher": "cases/mr_002.teacher.nii.gz"
+      }
+    },
+    {
+      "id": "ct_005",
+      "modality": "ct",
+      "shape": [
+        147,
+        185,
+        153
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.8689,
+      "teacher_macro_dice": 0.8264,
+      "default_slice": 73,
+      "paths": {
+        "volume": "cases/ct_005.nii.gz",
+        "gt": "cases/ct_005.gt.nii.gz",
+        "teacher": "cases/ct_005.teacher.nii.gz"
+      }
+    },
+    {
+      "id": "mr_005",
+      "modality": "mr",
+      "shape": [
+        155,
+        187,
+        131
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.9608,
+      "teacher_macro_dice": 0.8809,
+      "default_slice": 52,
+      "paths": {
+        "volume": "cases/mr_005.nii.gz",
+        "gt": "cases/mr_005.gt.nii.gz",
+        "teacher": "cases/mr_005.teacher.nii.gz"
+      }
+    },
+    {
+      "id": "ct_010",
+      "modality": "ct",
+      "shape": [
+        141,
+        185,
+        163
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.8989,
+      "teacher_macro_dice": 0.8658,
+      "default_slice": 72,
+      "paths": {
+        "volume": "cases/ct_010.nii.gz",
+        "gt": "cases/ct_010.gt.nii.gz",
+        "teacher": "cases/ct_010.teacher.nii.gz"
+      }
+    },
+    {
+      "id": "mr_010",
+      "modality": "mr",
+      "shape": [
+        151,
+        180,
+        129
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.9502,
+      "teacher_macro_dice": 0.9026,
+      "default_slice": 64,
+      "paths": {
+        "volume": "cases/mr_010.nii.gz",
+        "gt": "cases/mr_010.gt.nii.gz",
+        "teacher": "cases/mr_010.teacher.nii.gz"
+      }
+    },
+    {
+      "id": "ct_015",
+      "modality": "ct",
+      "shape": [
+        152,
+        187,
+        169
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.899,
+      "teacher_macro_dice": 0.8736,
+      "default_slice": 81,
+      "paths": {
+        "volume": "cases/ct_015.nii.gz",
+        "gt": "cases/ct_015.gt.nii.gz",
+        "teacher": "cases/ct_015.teacher.nii.gz"
+      }
+    },
+    {
+      "id": "mr_015",
+      "modality": "mr",
+      "shape": [
+        160,
+        191,
+        126
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.9469,
+      "teacher_macro_dice": 0.8428,
+      "default_slice": 63,
+      "paths": {
+        "volume": "cases/mr_015.nii.gz",
+        "gt": "cases/mr_015.gt.nii.gz",
+        "teacher": "cases/mr_015.teacher.nii.gz"
+      }
+    },
+    {
+      "id": "ct_025",
+      "modality": "ct",
+      "shape": [
+        147,
+        184,
+        160
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.9352,
+      "teacher_macro_dice": 0.8907,
+      "default_slice": 77,
+      "paths": {
+        "volume": "cases/ct_025.nii.gz",
+        "gt": "cases/ct_025.gt.nii.gz",
+        "teacher": "cases/ct_025.teacher.nii.gz"
+      }
+    },
+    {
+      "id": "mr_025",
+      "modality": "mr",
+      "shape": [
+        148,
+        180,
+        127
+      ],
+      "spacing": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "teacher_merged_dice": 0.9601,
+      "teacher_macro_dice": 0.9395,
+      "default_slice": 62,
+      "paths": {
+        "volume": "cases/mr_025.nii.gz",
+        "gt": "cases/mr_025.gt.nii.gz",
+        "teacher": "cases/mr_025.teacher.nii.gz"
+      }
+    }
+  ]
+}
