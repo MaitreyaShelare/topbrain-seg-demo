@@ -2,7 +2,7 @@
 // Strategy: precache all static assets on install, serve from cache on fetch,
 // fall back to network for anything uncached.
 
-const CACHE_NAME = 'topbrain-v2';
+const CACHE_NAME = 'topbrain-v3';
 
 // Assets to precache on install. All file paths relative to /
 const PRECACHE = [
@@ -29,6 +29,7 @@ const PRECACHE = [
   './cases/mr_025.nii.gz', './cases/mr_025.gt.nii.gz', './cases/mr_025.teacher.nii.gz',
   './manifest.json',
   './ort_runtime/ort.min.js',
+  './ort_runtime/ort-wasm-simd-threaded.mjs',
   './ort_runtime/ort-wasm-simd-threaded.wasm',
 ];
 
