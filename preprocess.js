@@ -1,5 +1,4 @@
-// preprocess.js — crop + resample + normalize.
-// Matches topbrain_lib._bbox_from_array and _resample exactly.
+// preprocess.js — Exact translation of SimpleITK's resampling logic.
 
 function percentile(arr, p) {
   const n = arr.length;
@@ -19,7 +18,7 @@ function cropToBbox(img, refBbox = null) {
     ({ z0, z1, y0, y1, x0, x1 } = refBbox);
   } else {
     const N = data.length;
-    const sampleSize = Math.min(200000, N);
+    const sampleSize = Math.min(100000, N); // reduced sample for speed
     const sample = new Float32Array(sampleSize);
     for (let i = 0; i < sampleSize; i++) {
       sample[i] = data[Math.floor(Math.random() * N)];
@@ -44,6 +43,7 @@ function cropToBbox(img, refBbox = null) {
     if (y0 > y1) { y0 = 0; y1 = H - 1; }
     if (x0 > x1) { x0 = 0; x1 = W - 1; }
 
+    // SAME MARGIN AS PYTHON (margin=5)
     z0 = Math.max(0, z0 - 5); z1 = Math.min(D - 1, z1 + 5);
     y0 = Math.max(0, y0 - 5); y1 = Math.min(H - 1, y1 + 5);
     x0 = Math.max(0, x0 - 5); x1 = Math.min(W - 1, x1 + 5);
@@ -60,7 +60,6 @@ function cropToBbox(img, refBbox = null) {
     }
   }
 
-  // Update affine to reflect the crop
   const newAffine = Float64Array.from(affine);
   newAffine[3] -= x0 * spacing[2];
   newAffine[7] -= y0 * spacing[1];
@@ -82,30 +81,43 @@ function resample(img, targetSpacingZYX, isLabel = false) {
   const nW = Math.max(1, Math.round(W * sx / tx));
   const out = new Float32Array(nD * nH * nW);
 
-  // We use the affine to map physical coordinates
-  // For each output voxel (od, oh, ow):
-  // world = affine * [ow, oh, od, 1] (in LPS)
-  // input = inv(affine) * world
-  // Since the image is axis-aligned (LPS), we can just use scaling ratios
-  const scaleZ = sz / tz, scaleY = sy / ty, scaleX = sx / tx;
+  // Physical origin (assuming LPS, which nifti.js reorients to)
+  const ox = affine[3], oy = affine[7], oz = affine[11];
 
   for (let od = 0; od < nD; od++) {
     for (let oh = 0; oh < nH; oh++) {
       for (let ow = 0; ow < nW; ow++) {
-        const izf = od * scaleZ;
-        const iyf = oh * scaleY;
-        const ixf = ow * scaleX;
+        // 1. Map output voxel (od, oh, ow) to world physical space
+        // Note: affine is [X, Y, Z], but our loop is [Z, Y, X]
+        // We must be careful with axis ordering.
+        const wx = ox + ow * tx;
+        const wy = oy + oh * ty;
+        const wz = oz + od * tz;
+
+        // 2. Map world space back to input voxel coordinates
+        // LPS means:
+        // x = (wx - ox) / sx
+        // y = (wy - oy) / sy
+        // z = (wz - oz) / sz
+        const ix = (wx - ox) / sx;
+        const iy = (wy - oy) / sy;
+        const iz = (wz - oz) / sz;
 
         if (isLabel) {
-          const ix = Math.min(W - 1, Math.round(ixf));
-          const iy = Math.min(H - 1, Math.round(iyf));
-          const iz = Math.min(D - 1, Math.round(izf));
-          out[od * nH * nW + oh * nW + ow] = data[iz * H * W + iy * W + ix];
+          const cx = Math.min(W - 1, Math.max(0, Math.round(ix)));
+          const cy = Math.min(H - 1, Math.max(0, Math.round(iy)));
+          const cz = Math.min(D - 1, Math.max(0, Math.round(iz)));
+          out[od * nH * nW + oh * nW + ow] = data[cz * H * W + cy * W + cx];
         } else {
-          const z0 = Math.floor(izf), z1 = Math.min(D - 1, z0 + 1);
-          const y0 = Math.floor(iyf), y1 = Math.min(H - 1, y0 + 1);
-          const x0 = Math.floor(ixf), x1 = Math.min(W - 1, x0 + 1);
-          const dz = izf - z0, dy = iyf - y0, dx = ixf - x0;
+          const z0 = Math.max(0, Math.min(D - 1, Math.floor(iz)));
+          const z1 = Math.max(0, Math.min(D - 1, Math.ceil(iz)));
+          const y0 = Math.max(0, Math.min(H - 1, Math.floor(iy)));
+          const y1 = Math.max(0, Math.min(H - 1, Math.ceil(iy)));
+          const x0 = Math.max(0, Math.min(W - 1, Math.floor(ix)));
+          const x1 = Math.max(0, Math.min(W - 1, Math.ceil(ix)));
+
+          const dz = iz - z0, dy = iy - y0, dx = ix - x0;
+          
           const c000 = data[z0 * H * W + y0 * W + x0];
           const c001 = data[z0 * H * W + y0 * W + x1];
           const c010 = data[z0 * H * W + y1 * W + x0];
@@ -114,12 +126,15 @@ function resample(img, targetSpacingZYX, isLabel = false) {
           const c101 = data[z1 * H * W + y0 * W + x1];
           const c110 = data[z1 * H * W + y1 * W + x0];
           const c111 = data[z1 * H * W + y1 * W + x1];
+
           const c00 = c000 * (1 - dx) + c001 * dx;
           const c01 = c010 * (1 - dx) + c011 * dx;
           const c10 = c100 * (1 - dx) + c101 * dx;
           const c11 = c110 * (1 - dx) + c111 * dx;
+
           const c0 = c00 * (1 - dy) + c01 * dy;
           const c1 = c10 * (1 - dy) + c11 * dy;
+
           out[od * nH * nW + oh * nW + ow] = c0 * (1 - dz) + c1 * dz;
         }
       }
@@ -142,7 +157,7 @@ function normalize(img, modality, preprocessing) {
     }
   } else if (cfg.mode === "per_volume_percentile_zscore") {
     const N = img.data.length;
-    const sampleSize = Math.min(200000, N);
+    const sampleSize = Math.min(100000, N);
     const sample = new Float32Array(sampleSize);
     for (let i = 0; i < sampleSize; i++) {
       sample[i] = img.data[Math.floor(Math.random() * N)];
