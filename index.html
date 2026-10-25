@@ -628,12 +628,25 @@
         const gtRaw = await loadNiftiFromFile(file);
         statusEl.textContent = "Preprocessing GT mask...";
         
-        let gtPre = gtRaw;
-        gtPre = cropToBbox(gtPre);
-        const ts = preprocessingJson.target_spacing_mm;
-        gtPre = resample(gtPre, [ts[2], ts[1], ts[0]], true);
+                let gtPre = gtRaw;
+        const targetShape = lastProcessedImg.shape;
+        const [nD, nH, nW] = targetShape;
+        const [oD, oH, oW] = gtRaw.shape;
+        
+        const resizedData = new Float32Array(nD * nH * nW);
+        for (let z = 0; z < nD; z++) {
+          const oz = Math.min(oD - 1, Math.floor(z * oD / nD));
+          for (let y = 0; y < nH; y++) {
+            const oy = Math.min(oH - 1, Math.floor(y * oH / nH));
+            for (let x = 0; x < nW; x++) {
+              const ox = Math.min(oW - 1, Math.floor(x * oW / nW));
+              resizedData[z * nH * nW + y * nW + x] = gtRaw.data[oz * oH * oW + oy * oW + ox];
+            }
+          }
+        }
+        gtPre = { data: resizedData, shape: targetShape, spacing: gtRaw.spacing, affine: gtRaw.affine };
 
-        statusEl.textContent = "Calculating metrics...";
+                statusEl.textContent = "Calculating metrics...";
         const stuMetrics = dicePerClass(gtPre.data, lastPrediction.data);
         
         document.getElementById('metrics').innerHTML = `
