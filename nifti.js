@@ -44,7 +44,18 @@ async function parseNifti(arrayBuffer, isRaw = true) {
 
   const pixdim = [];
   for (let i = 0; i < 8; i++) pixdim.push(dv.getFloat32(76 + i * 4, true));
-  const sx = pixdim[1] || 1, sy = pixdim[2] || 1, sz = pixdim[3] || 1;
+  
+  // Parse affine matrix from NIfTI header
+  const affine = new Float64Array(16);
+  for (let i = 0; i < 4; i++) affine[i]     = dv.getFloat32(280 + i * 4, true);
+  for (let i = 0; i < 4; i++) affine[4 + i] = dv.getFloat32(296 + i * 4, true);
+  for (let i = 0; i < 4; i++) affine[8 + i] = dv.getFloat32(312 + i * 4, true);
+  affine[15] = 1;
+
+  // Calculate true physical spacing from affine matrix (matches SimpleITK)
+  const sx = Math.hypot(affine[0], affine[4], affine[8]) || pixdim[1] || 1;
+  const sy = Math.hypot(affine[1], affine[5], affine[9]) || pixdim[2] || 1;
+  const sz = Math.hypot(affine[2], affine[6], affine[10]) || pixdim[3] || 1;
 
   const vox_offset = dv.getFloat32(108, true) || 352;
   const scl_slope = dv.getFloat32(112, true);

@@ -76,9 +76,10 @@ function resample(img, targetSpacingZYX, isLabel = false) {
   const [sz, sy, sx] = spacing;
   const [tz, ty, tx] = targetSpacingZYX;
 
-  const nD = Math.max(1, Math.round(D * sz / tz));
-  const nH = Math.max(1, Math.round(H * sy / ty));
-  const nW = Math.max(1, Math.round(W * sx / tx));
+  // Use Math.ceil to match SimpleITK's internal rounding logic
+  const nD = Math.max(1, Math.ceil(D * sz / tz));
+  const nH = Math.max(1, Math.ceil(H * sy / ty));
+  const nW = Math.max(1, Math.ceil(W * sx / tx));
   const out = new Float32Array(nD * nH * nW);
 
   // Physical origin (assuming LPS, which nifti.js reorients to)
