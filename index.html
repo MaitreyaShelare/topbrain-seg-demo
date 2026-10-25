@@ -303,15 +303,16 @@
   </div>
 
   <div class="section">
-    <div class="section-title">Upload a NIfTI volume</div>
+    <div class="section-title">Upload NIfTI volumes</div>
     <p style="font-size:12px;color:#666;margin:0 0 12px;">
-      Accepts <code>.nii.gz</code> files (NIfTI, standard for medical 3D imaging). The volume is read, resampled to 0.9 mm isotropic spacing, and processed locally in the browser. No data is transmitted to any server.
+      <strong>Option 1: Data Only (Inference).</strong> Upload a single <code>.nii.gz</code> file to run the student model and see the predicted vessels.<br>
+      <strong>Option 2: Data + GT (Evaluation).</strong> Upload 2 files at once (Image first, GT mask second) to compute the Dice scores.
     </p>
     <label class="dropzone" for="upload">
       <div class="icon">&#128194;</div>
       <div class="label">Tap to choose a .nii.gz file</div>
       <div class="hint">or drag and drop on desktop</div>
-      <input type="file" id="upload" accept=".nii,.nii.gz">
+      <input type="file" id="upload" accept=".nii,.nii.gz" multiple>
     </label>
     <div id="upload-status" style="font-size: 12px; color: #666; margin-top: 8px;"></div>
   </div>
@@ -564,8 +565,13 @@
     }
 
     async function handleUpload(evt) {
-      const file = evt.target.files[0];
-      if (!file) return;
+      const files = evt.target.files;
+      if (!files || files.length === 0) return;
+      
+      const file = files[0];
+      const isMulti = files.length >= 2;
+      const gtFile = isMulti ? files[1] : null;
+      
       const statusEl = document.getElementById('upload-status');
       statusEl.textContent = `Reading ${file.name}`;
       try {
@@ -593,6 +599,12 @@
         document.getElementById('metrics').innerHTML = `<div style="color:#666;font-size:13px;grid-column:span 2;">No ground truth for uploaded volume. Student prediction is displayed without metrics.</div>`;
         lastClassTable = null;
         document.getElementById('gt-upload-section').style.display = 'block';
+        
+        // If the user selected 2 files at once, automatically run the GT evaluation
+        if (isMulti) {
+          const fakeEvt = { target: { files: [gtFile] } };
+          await handleUploadGT(fakeEvt);
+        }
       } catch (e) {
         statusEl.textContent = `Error: ${e.message}`;
         console.error(e);
