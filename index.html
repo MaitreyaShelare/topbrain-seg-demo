@@ -304,10 +304,8 @@ def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbo
     
     data_crop = data[z0:z1, y0:y1, x0:x1]
     
-    if target_shape is not None:
-        zoom_factors = (target_shape[0] / data_crop.shape[0], target_shape[1] / data_crop.shape[1], target_shape[2] / data_crop.shape[2])
-    else:
-        zoom_factors = (spacing[0] / target_spacing[0], spacing[1] / target_spacing[1], spacing[2] / target_spacing[2])
+    # ALWAYS use physical spacing to resample (exactly like SimpleITK)
+    zoom_factors = (spacing[0] / target_spacing[0], spacing[1] / target_spacing[1], spacing[2] / target_spacing[2])
         
     order = 0 if is_label else 1
     resampled = zoom(data_crop, zoom_factors, order=order)
@@ -695,24 +693,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
           gtPre = { data: gtData, shape: parsed.shape, spacing: [0.9, 0.9, 0.9] };
         }
         
-        // Force shape match just in case
-        const targetShape = lastProcessedImg.shape;
-        if (gtPre.shape[0] !== targetShape[0] || gtPre.shape[1] !== targetShape[1] || gtPre.shape[2] !== targetShape[2]) {
-           const [nD, nH, nW] = targetShape;
-           const [oD, oH, oW] = gtPre.shape;
-           const resizedData = new Float32Array(nD * nH * nW);
-           for (let z = 0; z < nD; z++) {
-             const oz = Math.min(oD - 1, Math.floor(z * oD / nD));
-             for (let y = 0; y < nH; y++) {
-               const oy = Math.min(oH - 1, Math.floor(y * oH / nH));
-               for (let x = 0; x < nW; x++) {
-                 const ox = Math.min(oW - 1, Math.floor(x * oW / nW));
-                 resizedData[z * nH * nW + y * nW + x] = gtPre.data[oz * oH * oW + oy * oW + ox];
-               }
-             }
-           }
-           gtPre = { data: resizedData, shape: targetShape, spacing: gtPre.spacing, affine: gtPre.affine };
-        }
+        // (Python guarantees the shape matches via np.pad, so JS fallback is removed)
         
         statusEl.textContent = "Calculating metrics...";
         const stuMetrics = dicePerClass(gtPre.data, lastPrediction.data);
@@ -760,7 +741,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v19');
+      const cache = await caches.open('topbrain-v21');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
