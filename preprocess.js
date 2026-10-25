@@ -16,43 +16,46 @@ function percentile(arr, p) {
 }
 
 // ---- crop to brain bbox (matches topbrain_lib._bbox_from_array) ----
-function cropToBbox(img) {
+function cropToBbox(img, refBbox = null) {
   const { data, shape, spacing, affine } = img;
   const [D, H, W] = shape;
 
-  // Compute p01, p99 of raw values (matches np.percentile(arr, [1,99]))
-  // Sampling for speed — 100k random voxels is representative for these stats
-  const N = data.length;
-  const sampleSize = Math.min(200000, N);
-  const sample = new Float32Array(sampleSize);
-  for (let i = 0; i < sampleSize; i++) {
-    sample[i] = data[Math.floor(Math.random() * N)];
-  }
-  const p01 = percentile(sample, 1);
-  const p99 = percentile(sample, 99);
-  const threshold = p01 + 0.1 * (p99 - p01);
+  let z0, z1, y0, y1, x0, x1;
 
-  // Find bbox (same iteration order as Python: [D=Z, H=Y, W=X])
-  let z0 = D, z1 = 0, y0 = H, y1 = 0, x0 = W, x1 = 0;
-  for (let z = 0; z < D; z++) {
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (data[z * H * W + y * W + x] > threshold) {
-          if (z < z0) z0 = z; if (z > z1) z1 = z;
-          if (y < y0) y0 = y; if (y > y1) y1 = y;
-          if (x < x0) x0 = x; if (x > x1) x1 = x;
+  if (refBbox) {
+    // Use the exact bounding box from the reference (e.g., the image)
+    ({ z0, z1, y0, y1, x0, x1 } = refBbox);
+  } else {
+    const N = data.length;
+    const sampleSize = Math.min(200000, N);
+    const sample = new Float32Array(sampleSize);
+    for (let i = 0; i < sampleSize; i++) {
+      sample[i] = data[Math.floor(Math.random() * N)];
+    }
+    const p01 = percentile(sample, 1);
+    const p99 = percentile(sample, 99);
+    const threshold = p01 + 0.1 * (p99 - p01);
+
+    z0 = D; z1 = 0; y0 = H; y1 = 0; x0 = W; x1 = 0;
+    for (let z = 0; z < D; z++) {
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (data[z * H * W + y * W + x] > threshold) {
+            if (z < z0) z0 = z; if (z > z1) z1 = z;
+            if (y < y0) y0 = y; if (y > y1) y1 = y;
+            if (x < x0) x0 = x; if (x > x1) x1 = x;
+          }
         }
       }
     }
-  }
-  if (z0 > z1) { z0 = 0; z1 = D - 1; }
-  if (y0 > y1) { y0 = 0; y1 = H - 1; }
-  if (x0 > x1) { x0 = 0; x1 = W - 1; }
+    if (z0 > z1) { z0 = 0; z1 = D - 1; }
+    if (y0 > y1) { y0 = 0; y1 = H - 1; }
+    if (x0 > x1) { x0 = 0; x1 = W - 1; }
 
-  // Apply margin 5, clamp (matches Python)
-  z0 = Math.max(0, z0 - 5); z1 = Math.min(D - 1, z1 + 5);
-  y0 = Math.max(0, y0 - 5); y1 = Math.min(H - 1, y1 + 5);
-  x0 = Math.max(0, x0 - 5); x1 = Math.min(W - 1, x1 + 5);
+    z0 = Math.max(0, z0 - 5); z1 = Math.min(D - 1, z1 + 5);
+    y0 = Math.max(0, y0 - 5); y1 = Math.min(H - 1, y1 + 5);
+    x0 = Math.max(0, x0 - 5); x1 = Math.min(W - 1, x1 + 5);
+  }
 
   const newD = z1 - z0 + 1, newH = y1 - y0 + 1, newW = x1 - x0 + 1;
   const out = new Float32Array(newD * newH * newW);
@@ -64,18 +67,14 @@ function cropToBbox(img) {
       }
     }
   }
-  // Adjust affine: origin shifts by (z0, y0, x0) voxels
   const newAffine = Float64Array.from(affine);
-  // Column-major vs row-major: nifti-reader-js uses row-major 4x4 where
-  // affine[0..3] is first row (x'), affine[4..7] second (y'), affine[8..11] third (z')
-  // Translation is affine[3], affine[7], affine[11] for x, y, z.
-  // Shift origin by voxel indices × spacing (LPS-aligned assumption; general case
-  // would need full matrix arithmetic, but TopBrain is axis-aligned).
   newAffine[3] -= x0 * spacing[2];
   newAffine[7] -= y0 * spacing[1];
   newAffine[11] -= z0 * spacing[0];
 
-  return { data: out, shape: [newD, newH, newW], spacing, affine: newAffine };
+  const res = { data: out, shape: [newD, newH, newW], spacing, affine: newAffine };
+  res._bbox = { z0, z1, y0, y1, x0, x1 };
+  return res;
 }
 
 // ---- resample to target spacing (trilinear for image, nearest for labels) ----
@@ -182,8 +181,10 @@ function preprocessForInference(img, modality, preprocessing, alreadyPreprocesse
   let out = img;
   if (!alreadyPreprocessed) {
     out = cropToBbox(out);
-    const ts = preprocessing.target_spacing_mm; // [sx, sy, sz] in world XYZ
-    out = resample(out, [ts[2], ts[1], ts[0]], false); // convert to ZYX
+    const ts = preprocessing.target_spacing_mm;
+    const bbox = out._bbox;
+    out = resample(out, [ts[2], ts[1], ts[0]], false);
+    out._bbox = bbox;
   }
   out = normalize(out, modality, preprocessing);
   return out;

@@ -586,6 +586,7 @@
         lastPrediction = studentPred;
         lastProcessedImg = imgPre;
         lastModality = modality;
+        window.lastImageBbox = imgRaw._bbox; // Save the raw image bbox
         statusEl.textContent = `Done (${file.name}). No ground truth is available for uploaded volumes, so only the student prediction is shown.`;
         showViewer();
         const zeroArr = new Uint8Array(imgPre.data.length);
