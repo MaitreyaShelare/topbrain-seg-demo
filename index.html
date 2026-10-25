@@ -316,6 +316,20 @@
     <div id="upload-status" style="font-size: 12px; color: #666; margin-top: 8px;"></div>
   </div>
 
+  <!-- NEW BLOCK: GT Upload for Evaluation -->
+  <div class="section" id="gt-upload-section" style="display:none;">
+    <div class="section-title">Optional: Upload Ground Truth for Evaluation</div>
+    <p style="font-size:12px;color:#666;margin:0 0 12px;">
+      Upload the manual annotation mask (.nii.gz) for the volume above to calculate Dice scores.
+    </p>
+    <label class="dropzone" for="upload-gt">
+      <div class="icon">&#128194;</div>
+      <div class="label">Tap to choose a GT mask file</div>
+      <input type="file" id="upload-gt" accept=".nii,.nii.gz">
+    </label>
+    <div id="upload-gt-status" style="font-size: 12px; color: #666; margin-top: 8px;"></div>
+  </div>
+
   <script src="nifti.js?v=20261025h"></script>
   <script src="preprocess.js?v=20261025h"></script>
   <script src="inference.js?v=20261025h"></script>
@@ -340,6 +354,9 @@
     let classNames = null;
     let lastClassTable = null;
     let activeTile = null;
+    let lastPrediction = null;
+    let lastProcessedImg = null;
+    let lastModality = null;
 
     async function loadClassNames() {
       const csv = await fetch('class_table.csv').then(r => r.text());
@@ -424,6 +441,7 @@
       }
 
       document.getElementById('upload').addEventListener('change', handleUpload);
+      document.getElementById('upload-gt').addEventListener('change', handleUploadGT);
 
       document.getElementById('class-table-toggle').addEventListener('click', () => {
       const btn = document.getElementById('class-table-toggle');
@@ -559,6 +577,9 @@
         statusEl.textContent = `Running student inference on volume of shape ${imgPre.shape.join(' x ')}`;
         const studentPred = await inferVolume(imgPre, invalidClasses[modality], setProgress);
         clearProgress();
+        lastPrediction = studentPred;
+        lastProcessedImg = imgPre;
+        lastModality = modality;
         statusEl.textContent = `Done (${file.name}). No ground truth is available for uploaded volumes, so only the student prediction is shown.`;
         showViewer();
         const zeroArr = new Uint8Array(imgPre.data.length);
@@ -571,10 +592,60 @@
         });
         document.getElementById('metrics').innerHTML = `<div style="color:#666;font-size:13px;grid-column:span 2;">No ground truth for uploaded volume. Student prediction is displayed without metrics.</div>`;
         lastClassTable = null;
+        document.getElementById('gt-upload-section').style.display = 'block';
       } catch (e) {
         statusEl.textContent = `Error: ${e.message}`;
         console.error(e);
         clearProgress();
+      }
+    }
+
+    async function handleUploadGT(evt) {
+      const file = evt.target.files[0];
+      if (!file) return;
+      const statusEl = document.getElementById('upload-gt-status');
+      
+      if (!lastPrediction || !lastProcessedImg) {
+        statusEl.textContent = "Error: Please upload the primary image first.";
+        return;
+      }
+
+      statusEl.textContent = `Reading GT ${file.name}...`;
+      try {
+        const gtRaw = await loadNiftiFromFile(file);
+        statusEl.textContent = "Preprocessing GT mask...";
+        
+        let gtPre = gtRaw;
+        gtPre = cropToBbox(gtPre);
+        const ts = preprocessingJson.target_spacing_mm;
+        gtPre = resample(gtPre, [ts[2], ts[1], ts[0]], true);
+
+        statusEl.textContent = "Calculating metrics...";
+        const stuMetrics = dicePerClass(gtPre.data, lastPrediction.data);
+        
+        document.getElementById('metrics').innerHTML = `
+          <div class="cell stu"><div class="label">Student merged Dice</div><div class="value">${stuMetrics.merged.toFixed(3)}</div></div>
+          <div class="cell stu"><div class="label">Student macro Dice</div><div class="value">${stuMetrics.macro.toFixed(3)}</div></div>
+        `;
+        
+        lastClassTable = stuMetrics.perClass;
+        renderClassTable(lastClassTable);
+        document.getElementById('class-table-container').classList.add('open');
+        document.getElementById('class-table-toggle').classList.add('open');
+
+        const zeroArr = new Uint8Array(gtPre.data.length);
+        viewer.setData({
+          img: lastProcessedImg,
+          gt: gtPre,
+          teacher: { data: zeroArr, shape: gtPre.shape },
+          student: lastPrediction,
+          defaultSlice: Math.floor(gtPre.shape[0] / 2),
+        });
+
+        statusEl.textContent = `Done. Student vs GT computed.`;
+      } catch (e) {
+        statusEl.textContent = `Error: ${e.message}`;
+        console.error(e);
       }
     }
 
