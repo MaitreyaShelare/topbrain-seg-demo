@@ -2,12 +2,11 @@
 // Strategy: precache all static assets on install, serve from cache on fetch,
 // fall back to network for anything uncached.
 
-const CACHE_NAME = 'topbrain-v1';
+const CACHE_NAME = 'topbrain-v2';
 
 // Assets to precache on install. All file paths relative to /
 const PRECACHE = [
   './',
-  './index.html',
   './nifti.js',
   './preprocess.js',
   './inference.js',
@@ -29,22 +28,27 @@ const PRECACHE = [
   './cases/ct_025.nii.gz', './cases/ct_025.gt.nii.gz', './cases/ct_025.teacher.nii.gz',
   './cases/mr_025.nii.gz', './cases/mr_025.gt.nii.gz', './cases/mr_025.teacher.nii.gz',
   './manifest.json',
-  // ONNX Runtime Web (external CDN — cache on first fetch)
-  'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/ort.min.js',
-  'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/ort-wasm-simd-threaded.wasm',
-  'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.0/dist/ort-wasm-simd.wasm',
+  './ort_runtime/ort.min.js',
+  './ort_runtime/ort-wasm-simd-threaded.wasm',
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] install');
+  console.log('[SW] install - sequential precache');
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] precaching', PRECACHE.length, 'assets');
-      return cache.addAll(PRECACHE.map(url => new Request(url, { cache: 'reload' })))
-        .catch(err => {
-          console.error('[SW] precache failed on some asset:', err);
-          // Non-fatal: continue installing with what was fetched
-        });
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const url of PRECACHE) {
+        try {
+          const resp = await fetch(url, { cache: 'reload', redirect: 'follow' });
+          if (resp.ok || resp.type === 'opaqueredirect') {
+            await cache.put(url, resp);
+          } else {
+            console.warn('[SW] non-200', resp.status, url);
+          }
+        } catch (e) {
+          console.warn('[SW] fetch failed', url, e.message);
+        }
+      }
+      console.log('[SW] precache complete');
     }).then(() => self.skipWaiting())
   );
 });
