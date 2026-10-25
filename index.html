@@ -294,11 +294,11 @@ def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbo
             z0, z1, y0, y1, x0, x1 = 0, data.shape[0], 0, data.shape[1], 0, data.shape[2]
         else:
             z0 = max(0, int(coords[0].min()) - 5)
-            z1 = min(data.shape[0], int(coords[0].max()) + 5)
+            z1 = min(data.shape[0], int(coords[0].max()) + 1 + 5)
             y0 = max(0, int(coords[1].min()) - 5)
-            y1 = min(data.shape[1], int(coords[1].max()) + 5)
+            y1 = min(data.shape[1], int(coords[1].max()) + 1 + 5)
             x0 = max(0, int(coords[2].min()) - 5)
-            x1 = min(data.shape[2], int(coords[2].max()) + 5)
+            x1 = min(data.shape[2], int(coords[2].max()) + 1 + 5)
     else:
         z0, z1, y0, y1, x0, x1 = ref_bbox
     
@@ -741,7 +741,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v21');
+      const cache = await caches.open('topbrain-v22');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
