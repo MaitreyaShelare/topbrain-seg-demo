@@ -313,7 +313,8 @@ def preprocess_from_bytes(nii_bytes, is_label, modality, target_spacing, ref_bbo
         for i in range(3)
     ]
     
-    scale = np.array(spacing) / np.array(target_spacing)
+    # CORRECTED MATRIX: output_coord * (target / spacing) maps to input_coord
+    scale = np.array(target_spacing) / np.array(spacing)
     matrix = np.diag(scale)
     
     order = 0 if is_label else 1
@@ -753,7 +754,7 @@ json.dumps({"shape": shape, "dtype": dtype, "length": len(gt_out)})
         el.textContent = 'First load: caching model and 10 case files for offline use.';
         return;
       }
-      const cache = await caches.open('topbrain-v27');
+      const cache = await caches.open('topbrain-v28');
       const keys = await cache.keys();
       const hasModel = keys.some(req => req.url.includes('model.onnx'));
       const hasCases = keys.filter(req => req.url.includes('/cases/')).length;
