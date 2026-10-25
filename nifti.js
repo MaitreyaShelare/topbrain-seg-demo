@@ -82,6 +82,25 @@ async function parseNifti(arrayBuffer) {
     for (let i = 0; i < nVox; i++) outData[i] = data[i] * slope + inter;
   }
 
+  // FIX: The NIfTI file stores data in [X, Y, Z] order.
+  // We need to transpose it to [Z, Y, X] for the viewer and JS pipeline.
+  let transposedData;
+  if (nz === nx && ny === ny) {
+    // Fast path for cubic volumes: skip transpose
+    transposedData = outData;
+  } else {
+    transposedData = new Float32Array(nVox);
+    for (let z = 0; z < nz; z++) {
+      for (let y = 0; y < ny; y++) {
+        for (let x = 0; x < nx; x++) {
+          // Original index in [X, Y, Z] order: x + y*nx + z*nx*ny
+          // Target index in [Z, Y, X] order: z + y*nz + x*nz*ny
+          transposedData[z + y*nz + x*nz*ny] = outData[x + y*nx + z*nx*ny];
+        }
+      }
+    }
+  }
+
   const shape = [nz, ny, nx];   // D, H, W  (zyx order matches Python/SITK)
   const spacing = [sz, sy, sx];
 
@@ -92,7 +111,7 @@ async function parseNifti(arrayBuffer) {
   for (let i = 0; i < 4; i++) affine[8 + i] = dv.getFloat32(312 + i * 4, true);
   affine[15] = 1;
 
-  return { data: outData, shape, spacing, affine };
+  return { data: transposedData, shape, spacing, affine };
 }
 
 // Decode a base64 payload into an ArrayBuffer without going through fetch().
